@@ -4,6 +4,7 @@ import Layout from '../components/Layout'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { inputClass, btnClass, Field } from './Signup'
+import { getFileUrl } from '../lib/files'
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -16,11 +17,13 @@ function mkLesson() {
     video_url: '',
     attachment_url: '',
     _attachmentFile: null,
+    required_action: 'none',
+    action_prompt: '',
   }
 }
 
 function mkModule() {
-  return { _key: crypto.randomUUID(), id: null, title: '', outcome: '', reflective_question: '', quiz: null, lessons: [] }
+  return { _key: crypto.randomUUID(), id: null, title: '', outcome: '', reflective_question: '', image_url: '', _imageFile: null, quiz: null, lessons: [] }
 }
 
 async function uploadFile(bucket, folder, file) {
@@ -69,9 +72,9 @@ export default function CourseEditor() {
         .select(`
           id, title, description, cover_image, is_published,
           modules (
-            id, title, order_index, outcome, reflective_question,
+            id, title, order_index, outcome, reflective_question, image_url,
             quizzes ( id, title, passing_score, max_attempts ),
-            lessons ( id, title, content, video_url, attachment_url, order_index )
+            lessons ( id, title, content, video_url, attachment_url, order_index, required_action, action_prompt )
           )
         `)
         .eq('id', id)
@@ -98,6 +101,8 @@ export default function CourseEditor() {
               title: m.title ?? '',
               outcome: m.outcome ?? '',
               reflective_question: m.reflective_question ?? '',
+              image_url: m.image_url ?? '',
+              _imageFile: null,
               quiz: q
                 ? {
                     id: q.id,
@@ -116,6 +121,8 @@ export default function CourseEditor() {
                   video_url: l.video_url ?? '',
                   attachment_url: l.attachment_url ?? '',
                   _attachmentFile: null,
+                  required_action: l.required_action ?? 'none',
+                  action_prompt: l.action_prompt ?? '',
                 })),
             }
           }),
@@ -191,6 +198,18 @@ export default function CourseEditor() {
         const mod = modules[mi]
         let moduleId = mod.id
 
+        // Upload topic image if a new file was selected
+        let finalImageUrl = mod.image_url || null
+        if (mod._imageFile) {
+          const ext = mod._imageFile.name.split('.').pop()
+          const imgPath = `topic-images/${courseId}/${crypto.randomUUID()}.${ext}`
+          const { error: imgErr } = await supabase.storage
+            .from('course-files')
+            .upload(imgPath, mod._imageFile)
+          if (imgErr) throw imgErr
+          finalImageUrl = imgPath
+        }
+
         if (moduleId) {
           const { error: e } = await supabase
             .from('modules')
@@ -199,6 +218,7 @@ export default function CourseEditor() {
               order_index: mi,
               outcome: mod.outcome || null,
               reflective_question: mod.reflective_question || null,
+              image_url: finalImageUrl,
             })
             .eq('id', moduleId)
           if (e) throw e
@@ -211,6 +231,7 @@ export default function CourseEditor() {
               course_id: courseId,
               outcome: mod.outcome || null,
               reflective_question: mod.reflective_question || null,
+              image_url: finalImageUrl,
             })
             .select('id')
             .single()
@@ -233,6 +254,8 @@ export default function CourseEditor() {
             attachment_url: attachUrl,
             order_index: li,
             module_id: moduleId,
+            required_action: l.required_action || 'none',
+            action_prompt: l.action_prompt || null,
           }
 
           if (l.id) {
@@ -531,6 +554,11 @@ export default function CourseEditor() {
                     className={`${inputClass} resize-y`}
                   />
                 </Field>
+                <ModuleImageField
+                  imageUrl={mod.image_url}
+                  imageFile={mod._imageFile}
+                  onFileChange={(f) => updateModuleField(mod._key, '_imageFile', f)}
+                />
               </div>
 
               {/* materials & recordings manager */}
@@ -640,6 +668,45 @@ export default function CourseEditor() {
                             className={inputClass}
                           />
                         </Field>
+
+                        <Field label="Required action" id={`lra-${lesson._key}`}>
+                          <select
+                            id={`lra-${lesson._key}`}
+                            value={lesson.required_action}
+                            onChange={(e) =>
+                              updateLesson(mod._key, lesson._key, {
+                                required_action: e.target.value,
+                                action_prompt: '',
+                              })
+                            }
+                            className={inputClass}
+                          >
+                            <option value="none">None — learners mark done freely</option>
+                            <option value="link">Link — learners must submit a URL</option>
+                            <option value="file">File — learners must upload a file</option>
+                          </select>
+                        </Field>
+
+                        {lesson.required_action !== 'none' && (
+                          <Field label="Action prompt" id={`lap-${lesson._key}`}>
+                            <input
+                              id={`lap-${lesson._key}`}
+                              type="text"
+                              placeholder={
+                                lesson.required_action === 'link'
+                                  ? 'e.g. Share a link to your completed project…'
+                                  : 'e.g. Upload a photo of your finished work…'
+                              }
+                              value={lesson.action_prompt}
+                              onChange={(e) =>
+                                updateLesson(mod._key, lesson._key, {
+                                  action_prompt: e.target.value,
+                                })
+                              }
+                              className={inputClass}
+                            />
+                          </Field>
+                        )}
 
                         <Field label="Attachment" id={`la-${lesson._key}`}>
                           {lesson.attachment_url && !lesson._attachmentFile && (
@@ -1032,6 +1099,48 @@ function ResourceManager({ moduleId }) {
         </div>
       </div>
     </div>
+  )
+}
+
+// ─── module image upload field ────────────────────────────────────────────────
+
+function ModuleImageField({ imageUrl, imageFile, onFileChange }) {
+  const [resolvedUrl, setResolvedUrl] = useState(null)
+  const [localPreview, setLocalPreview] = useState(null)
+
+  useEffect(() => {
+    if (!imageUrl) { setResolvedUrl(null); return }
+    getFileUrl(imageUrl).then((url) => setResolvedUrl(url ?? null))
+  }, [imageUrl])
+
+  useEffect(() => {
+    if (!imageFile) { setLocalPreview(null); return }
+    const url = URL.createObjectURL(imageFile)
+    setLocalPreview(url)
+    return () => URL.revokeObjectURL(url)
+  }, [imageFile])
+
+  const displayUrl = localPreview || resolvedUrl
+
+  return (
+    <Field label="Topic image" id="topic-img">
+      {displayUrl && (
+        <img
+          src={displayUrl}
+          alt=""
+          className="mb-2 h-[88px] w-full rounded-lg object-cover"
+        />
+      )}
+      <input
+        type="file"
+        accept="image/*"
+        onChange={(e) => {
+          const f = e.target.files?.[0]
+          if (f) onFileChange(f)
+        }}
+        className="block text-sm text-ink/70 file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-teal-light file:px-3 file:py-1 file:text-sm file:font-medium file:text-teal-dark"
+      />
+    </Field>
   )
 }
 

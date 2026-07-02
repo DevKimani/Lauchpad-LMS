@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import FileLink from '../components/FileLink'
+import { getFileUrl } from '../lib/files'
 import { supabase } from '../lib/supabase'
+import { getFileUrl } from '../lib/files'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Lesson Player  — EFAC hi-fi design 4c
@@ -23,6 +25,10 @@ export default function LessonPlayer() {
   const [activeTab, setActiveTab] = useState('overview')
   const [localNotes, setLocalNotes] = useState('')
   const [marking, setMarking] = useState(false)
+  const [evidenceMap, setEvidenceMap] = useState({})   // { [lessonId]: { url, type } }
+  const [evidenceInput, setEvidenceInput] = useState('')
+  const [evidenceFile, setEvidenceFile] = useState(null)
+  const [replacing, setReplacing] = useState(false)
 
   // ── Data loading ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -34,8 +40,8 @@ export default function LessonPlayer() {
           .select(`
             id, title,
             modules (
-              id, title, order_index,
-              lessons ( id, title, content, order_index, video_url ),
+              id, title, order_index, image_url,
+              lessons ( id, title, content, order_index, required_action, action_prompt ),
               assignments ( id )
             )
           `)
@@ -43,7 +49,7 @@ export default function LessonPlayer() {
           .single(),
         supabase
           .from('lesson_progress')
-          .select('lesson_id, completed')
+          .select('lesson_id, completed, evidence_url, evidence_type')
           .eq('learner_id', userId),
         supabase
           .from('submissions')
@@ -81,8 +87,13 @@ export default function LessonPlayer() {
       }
 
       const pMap = {}
-      for (const r of progressRes.data ?? []) pMap[r.lesson_id] = r.completed
+      const evMap = {}
+      for (const r of progressRes.data ?? []) {
+        pMap[r.lesson_id] = r.completed
+        if (r.evidence_url) evMap[r.lesson_id] = { url: r.evidence_url, type: r.evidence_type }
+      }
       setProgress(pMap)
+      setEvidenceMap(evMap)
 
       const sMap = {}
       for (const s of subRes.data ?? []) sMap[s.assignment_id] = true
@@ -93,8 +104,13 @@ export default function LessonPlayer() {
     load()
   }, [userId, courseId])
 
-  // Reset to Overview tab when the lesson changes
-  useEffect(() => { setActiveTab('overview') }, [lessonId])
+  // Reset tab + evidence inputs when lesson changes
+  useEffect(() => {
+    setActiveTab('overview')
+    setEvidenceInput('')
+    setEvidenceFile(null)
+    setReplacing(false)
+  }, [lessonId])
 
   // ── Derived ─────────────────────────────────────────────────────────────────
 
@@ -140,6 +156,14 @@ export default function LessonPlayer() {
   const completedCount = flatLessons.filter((l) => !!progress[l.id]).length
   const isCurrentComplete = !!progress[lessonId]
 
+  const ra = currentLesson?.required_action ?? 'none'
+  const existingEvidence = evidenceMap[lessonId]
+  const isEvidenceReady =
+    ra === 'none' ||
+    (!!existingEvidence && !replacing) ||
+    (ra === 'link' && evidenceInput.trim().startsWith('http')) ||
+    (ra === 'file' && evidenceFile !== null)
+
   // Resources for the active module
   const moduleResources = resources[currentModule?.id] ?? []
   const noteResources = moduleResources.filter((r) => r.kind === 'note')
@@ -148,20 +172,56 @@ export default function LessonPlayer() {
   // ── Mark complete & continue ────────────────────────────────────────────────
   async function handleMarkComplete() {
     if (marking || !currentLesson) return
-    setMarking(true)
 
+    // Already complete and not replacing evidence: just navigate
+    if (isCurrentComplete && !replacing) {
+      const next = nextAfterComplete()
+      if (next) navigate(`/courses/${courseId}/lessons/${next.id}`)
+      else navigate(`/courses/${courseId}`)
+      return
+    }
+
+    if (!isEvidenceReady) return
+
+    setMarking(true)
     const next = nextAfterComplete()
 
+    // Collect / upload evidence
+    let evUrl = null
+    let evType = null
+    if (ra === 'link' && evidenceInput.trim()) {
+      evUrl = evidenceInput.trim()
+      evType = 'link'
+    } else if (ra === 'file' && evidenceFile) {
+      const ext = evidenceFile.name.split('.').pop()
+      const path = `lesson-evidence/${lessonId}/${crypto.randomUUID()}.${ext}`
+      const { error: upErr } = await supabase.storage
+        .from('course-files')
+        .upload(path, evidenceFile)
+      if (upErr) { setMarking(false); return }
+      evUrl = path
+      evType = 'file'
+    }
+
+    const upsertData = {
+      lesson_id: lessonId,
+      learner_id: userId,
+      completed: true,
+      completed_at: new Date().toISOString(),
+      ...(evUrl ? { evidence_url: evUrl, evidence_type: evType } : {}),
+    }
+
     const { error } = await supabase.from('lesson_progress').upsert(
-      {
-        lesson_id: lessonId,
-        learner_id: userId,
-        completed: true,
-        completed_at: new Date().toISOString(),
-      },
+      upsertData,
       { onConflict: 'lesson_id,learner_id' },
     )
-    if (!error) setProgress((p) => ({ ...p, [lessonId]: true }))
+    if (!error) {
+      setProgress((p) => ({ ...p, [lessonId]: true }))
+      if (evUrl) setEvidenceMap((m) => ({ ...m, [lessonId]: { url: evUrl, type: evType } }))
+      setReplacing(false)
+      setEvidenceInput('')
+      setEvidenceFile(null)
+    }
 
     setMarking(false)
 
@@ -188,15 +248,15 @@ export default function LessonPlayer() {
     )
   }
 
-  if (!course || !currentLesson) {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-paper">
-        <p className="font-display text-[20px] font-semibold text-ink">Lesson not found</p>
-        <Link to={`/courses/${courseId}`} className="text-[14px] font-semibold text-teal hover:underline">
-          ← Back to course
-        </Link>
-      </div>
-    )
+  // No course at all → back to catalog
+  if (!course) {
+    return <Navigate to="/courses" replace />
+  }
+
+  // Modules came back empty — user is not enrolled (RLS blocked content)
+  // or the lesson ID is wrong. Either way, send them to the course page.
+  if (flatLessons.length === 0 || !currentLesson) {
+    return <Navigate to={`/courses/${courseId}`} replace />
   }
 
   // ── Render ──────────────────────────────────────────────────────────────────
@@ -248,8 +308,8 @@ export default function LessonPlayer() {
         {/* ── MAIN ───────────────────────────────────────────────────────── */}
         <main className="flex flex-1 flex-col min-w-0">
 
-          {/* Media area — 300 px tall */}
-          <VideoArea lesson={currentLesson} />
+          {/* Topic banner */}
+          <TopicBanner module={currentModule} />
 
           {/* Lesson info + tabs */}
           <div className="px-6 py-6">
@@ -303,6 +363,18 @@ export default function LessonPlayer() {
 
           </div>
 
+          {/* Evidence panel — shown when required_action is 'link' or 'file' */}
+          <EvidencePanel
+            lesson={currentLesson}
+            evidenceMap={evidenceMap}
+            evidenceInput={evidenceInput}
+            setEvidenceInput={setEvidenceInput}
+            evidenceFile={evidenceFile}
+            setEvidenceFile={setEvidenceFile}
+            replacing={replacing}
+            setReplacing={setReplacing}
+          />
+
           {/* Nav footer */}
           <footer className="mt-auto flex items-center justify-between gap-3 border-t border-line bg-paper px-6 py-4">
             {prevLesson ? (
@@ -320,10 +392,14 @@ export default function LessonPlayer() {
 
             <button
               onClick={handleMarkComplete}
-              disabled={marking}
+              disabled={marking || ((!isCurrentComplete || replacing) && !isEvidenceReady)}
               className="efac-btn efac-btn-sm"
             >
-              {marking ? 'Saving…' : isCurrentComplete ? 'Continue ›' : 'Mark complete & continue ›'}
+              {marking
+                ? 'Saving…'
+                : isCurrentComplete && !replacing
+                ? 'Continue ›'
+                : 'Mark complete & continue ›'}
             </button>
           </footer>
 
@@ -352,48 +428,35 @@ export default function LessonPlayer() {
   )
 }
 
-// ── VideoArea ─────────────────────────────────────────────────────────────────
+// ── TopicBanner ───────────────────────────────────────────────────────────────
 
-function VideoArea({ lesson }) {
-  const embed = lesson.video_url ? getVideoEmbed(lesson.video_url) : null
+function TopicBanner({ module: mod }) {
+  const [imgUrl, setImgUrl] = useState(null)
 
-  if (embed?.type === 'iframe') {
+  useEffect(() => {
+    if (!mod?.image_url) { setImgUrl(null); return }
+    getFileUrl(mod.image_url).then((url) => setImgUrl(url))
+  }, [mod?.image_url])
+
+  if (imgUrl) {
     return (
-      <div className="h-[300px] w-full shrink-0 overflow-hidden bg-ink">
-        <iframe
-          src={embed.src}
-          title={lesson.title}
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-          allowFullScreen
-          className="h-full w-full border-0"
-        />
+      <div className="h-[220px] w-full shrink-0 overflow-hidden">
+        <img src={imgUrl} alt="" className="h-full w-full object-cover" />
       </div>
     )
   }
 
-  if (embed?.type === 'video') {
-    return (
-      <div className="h-[300px] w-full shrink-0 overflow-hidden bg-ink">
-        {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-        <video src={embed.src} controls className="h-full w-full" />
-      </div>
-    )
-  }
-
-  // Styled placeholder
   return (
-    <div className="flex h-[300px] w-full shrink-0 flex-col items-center justify-center gap-3 bg-gradient-to-br from-teal-dark to-teal">
-      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white/10">
-        <svg
-          viewBox="0 0 24 24"
-          fill="currentColor"
-          className="h-7 w-7 text-white/70"
-          aria-hidden="true"
-        >
-          <path d="M8 5v14l11-7z" />
-        </svg>
-      </div>
-      <p className="text-[13px] font-medium text-white/50">No video for this lesson</p>
+    <div
+      className="relative flex h-[220px] w-full shrink-0 items-center justify-center overflow-hidden bg-paper"
+      style={{
+        backgroundImage: 'radial-gradient(circle, #d8cfbf 1px, transparent 1px)',
+        backgroundSize: '20px 20px',
+      }}
+    >
+      <p className="relative z-10 px-8 text-center font-display text-[22px] font-semibold leading-snug text-teal">
+        {mod?.title ?? ''}
+      </p>
     </div>
   )
 }
@@ -477,6 +540,91 @@ function NotesTab({ notes, onChange }) {
         rows={8}
         className="efac-input resize-y text-[14px]"
       />
+    </div>
+  )
+}
+
+// ── EvidencePanel ─────────────────────────────────────────────────────────────
+
+function EvidencePanel({
+  lesson, evidenceMap, evidenceInput, setEvidenceInput,
+  evidenceFile, setEvidenceFile, replacing, setReplacing,
+}) {
+  const ra = lesson?.required_action ?? 'none'
+  if (ra === 'none') return null
+
+  const existing = evidenceMap[lesson.id]
+  const prompt = lesson.action_prompt
+    || (ra === 'link' ? 'Share a link as evidence of your work' : 'Upload a file as evidence of your work')
+
+  return (
+    <div className="border-y border-line bg-orange-tint/40 px-6 py-5">
+      <p className="mb-3 text-[13px] font-semibold text-ink">{prompt}</p>
+
+      {existing && !replacing ? (
+        /* Show previously submitted evidence */
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="flex items-center gap-1.5 rounded-full bg-card px-3 py-1.5 text-[12px] font-medium text-teal ring-1 ring-line">
+            {existing.type === 'link' ? (
+              <>
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3 shrink-0" aria-hidden="true">
+                  <path d="M6.5 9.5a3.18 3.18 0 004.5 0l2-2a3.18 3.18 0 00-4.5-4.5l-1 1" />
+                  <path d="M9.5 6.5a3.18 3.18 0 00-4.5 0l-2 2a3.18 3.18 0 004.5 4.5l1-1" />
+                </svg>
+                <a
+                  href={existing.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="max-w-[220px] truncate hover:underline"
+                >
+                  {existing.url}
+                </a>
+              </>
+            ) : (
+              <>
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3 shrink-0" aria-hidden="true">
+                  <path d="M9.5 2H4a1 1 0 00-1 1v10a1 1 0 001 1h8a1 1 0 001-1V5.5L9.5 2z" />
+                  <path d="M9.5 2v3.5H13" />
+                </svg>
+                <FileLink value={existing.url} label="View file" className="hover:underline" />
+              </>
+            )}
+          </span>
+          <button
+            onClick={() => setReplacing(true)}
+            className="text-[12px] text-muted transition-colors hover:text-ink"
+          >
+            Replace
+          </button>
+        </div>
+      ) : (
+        /* Input form */
+        <div className="space-y-2.5">
+          {ra === 'link' ? (
+            <input
+              type="url"
+              placeholder="https://…"
+              value={evidenceInput}
+              onChange={(e) => setEvidenceInput(e.target.value)}
+              className="efac-input text-[13px]"
+            />
+          ) : (
+            <input
+              type="file"
+              onChange={(e) => setEvidenceFile(e.target.files?.[0] ?? null)}
+              className="block text-[13px] text-ink/70 file:mr-3 file:cursor-pointer file:rounded-btn file:border-0 file:bg-orange-tint file:px-3 file:py-1.5 file:text-[13px] file:font-semibold file:text-ink"
+            />
+          )}
+          {replacing && (
+            <button
+              onClick={() => { setReplacing(false); setEvidenceInput(''); setEvidenceFile(null) }}
+              className="text-[12px] text-muted transition-colors hover:text-ink"
+            >
+              Cancel
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -611,34 +759,3 @@ function RailDot({ state }) {
   )
 }
 
-// ── Video embed helper ────────────────────────────────────────────────────────
-
-function getVideoEmbed(url) {
-  if (!url) return null
-
-  // YouTube: watch?v=, youtu.be/, /embed/
-  const ytMatch = url.match(
-    /(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/,
-  )
-  if (ytMatch) {
-    return { type: 'iframe', src: `https://www.youtube.com/embed/${ytMatch[1]}` }
-  }
-
-  // Vimeo
-  const vimeoMatch = url.match(/vimeo\.com\/(?:video\/)?(\d+)/)
-  if (vimeoMatch) {
-    return { type: 'iframe', src: `https://player.vimeo.com/video/${vimeoMatch[1]}` }
-  }
-
-  // Direct video file
-  if (/\.(mp4|webm|ogv|ogg)(\?|#|$)/i.test(url)) {
-    return { type: 'video', src: url }
-  }
-
-  // Generic URL — render in iframe
-  if (url.startsWith('http')) {
-    return { type: 'iframe', src: url }
-  }
-
-  return null
-}

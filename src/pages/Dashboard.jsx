@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext'
 import Layout from '../components/Layout'
 import NotificationBell from '../components/NotificationBell'
 import { supabase } from '../lib/supabase'
+import { getFileUrl } from '../lib/files'
 
 // ── Root router ───────────────────────────────────────────────────────────────
 // Learner gets its own full-page chrome; instructor/admin use the shared Layout.
@@ -51,7 +52,7 @@ function LearnerHome() {
             courses (
               id, title, cover_image, category,
               modules (
-                id, title, order_index,
+                id, title, order_index, image_url,
                 lessons ( id ),
                 assignments ( id )
               )
@@ -568,6 +569,15 @@ function LearnerNav() {
 
 function ContinueLearningHero({ module, moduleIndex, enr }) {
   const { courseId, course } = enr
+  const [thumbUrl, setThumbUrl] = useState(null)
+
+  useEffect(() => {
+    if (!module.image_url) { setThumbUrl(null); return }
+    getFileUrl(module.image_url).then((url) => setThumbUrl(url ?? null))
+  }, [module.image_url])
+
+  const displayImg = thumbUrl || course.cover_image
+
   const nextLesson =
     module.lessonTotal > 0
       ? Math.min(module.lessonDone + 1, module.lessonTotal)
@@ -577,12 +587,12 @@ function ContinueLearningHero({ module, moduleIndex, enr }) {
     <div className="efac-card overflow-hidden">
       <div className="flex flex-col sm:flex-row">
 
-        {/* 296 px thumbnail */}
+        {/* 296 px thumbnail — module image_url takes priority over course cover */}
         <div className="h-48 overflow-hidden sm:h-auto sm:w-[296px] sm:shrink-0">
-          {course.cover_image ? (
+          {displayImg ? (
             <img
-              src={course.cover_image}
-              alt={course.title}
+              src={displayImg}
+              alt={module.image_url ? module.title : course.title}
               className="h-full w-full object-cover"
             />
           ) : (

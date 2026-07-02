@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 
 export default function Signup() {
@@ -8,12 +9,23 @@ export default function Signup() {
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters')
+      return
+    }
+    if (password !== confirm) {
+      setError('Passwords do not match')
+      return
+    }
     setBusy(true)
     const { error } = await signUp({ email, password, fullName })
     setBusy(false)
@@ -45,14 +57,21 @@ export default function Signup() {
           />
         </Field>
         <Field label="Password" id="password">
-          <input
+          <PasswordInput
             id="password"
-            type="password"
-            required
-            minLength={6}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className={inputClass}
+            show={showPassword}
+            onToggle={() => setShowPassword((v) => !v)}
+          />
+        </Field>
+        <Field label="Confirm password" id="confirm">
+          <PasswordInput
+            id="confirm"
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            show={showConfirm}
+            onToggle={() => setShowConfirm((v) => !v)}
           />
         </Field>
         {error && <p className="text-sm text-clay">{error}</p>}
@@ -98,6 +117,29 @@ export function AuthShell({ title, subtitle, children }) {
           {children}
         </div>
       </div>
+    </div>
+  )
+}
+
+export function PasswordInput({ id, value, onChange, show, onToggle, required = true }) {
+  return (
+    <div className="relative">
+      <input
+        id={id}
+        type={show ? 'text' : 'password'}
+        required={required}
+        value={value}
+        onChange={onChange}
+        className={`${inputClass} pr-10`}
+      />
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-label={show ? 'Hide password' : 'Show password'}
+        className="absolute inset-y-0 right-0 flex items-center px-3 text-ink/40 hover:text-ink/70"
+      >
+        {show ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
+      </button>
     </div>
   )
 }

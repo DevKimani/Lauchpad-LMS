@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import Layout from '../components/Layout'
 import { supabase } from '../lib/supabase'
+import { getFileUrl } from '../lib/files'
 
 export default function Roster() {
   const { id: courseId } = useParams()
@@ -10,6 +11,7 @@ export default function Roster() {
   const [roster, setRoster] = useState([])
   const [modules, setModules] = useState([])
   const [reflectionsByModule, setReflectionsByModule] = useState({})
+  const [evidenceByLearner, setEvidenceByLearner] = useState({})  // { [learnerId]: { [lessonId]: { url, type } } }
   const [openModule, setOpenModule] = useState(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
@@ -19,7 +21,7 @@ export default function Roster() {
       // 1. Fetch course with all lesson IDs (to compute total + filter progress)
       const courseRes = await supabase
         .from('courses')
-        .select('id, title, modules ( id, title, order_index, lessons ( id ) )')
+        .select('id, title, modules ( id, title, order_index, lessons ( id, title, required_action ) )')
         .eq('id', courseId)
         .single()
 
@@ -39,7 +41,16 @@ export default function Roster() {
       )
       setCourseTitle(course.title)
       setTotalLessons(allLessonIds.length)
-      setModules(sortedModules.map((m) => ({ id: m.id, title: m.title ?? '', order_index: m.order_index })))
+      setModules(sortedModules.map((m) => ({
+        id: m.id,
+        title: m.title ?? '',
+        order_index: m.order_index,
+        lessons: (m.lessons ?? []).map((l) => ({
+          id: l.id,
+          title: l.title ?? '',
+          required_action: l.required_action ?? 'none',
+        })),
+      })))
 
       // 2. Fetch enrollments
       const enrollRes = await supabase
@@ -61,7 +72,7 @@ export default function Roster() {
         allLessonIds.length > 0
           ? supabase
               .from('lesson_progress')
-              .select('lesson_id, learner_id, completed')
+              .select('lesson_id, learner_id, completed, evidence_url, evidence_type')
               .in('lesson_id', allLessonIds)
               .in('learner_id', learnerIds)
           : Promise.resolve({ data: [] }),
@@ -74,12 +85,18 @@ export default function Roster() {
           : Promise.resolve({ data: [] }),
       ])
 
-      // Build per-learner progress map
+      // Build per-learner progress + evidence maps
       const progressByLearner = {}
+      const evByLearner = {}
       for (const row of progressRes.data ?? []) {
         if (!progressByLearner[row.learner_id]) progressByLearner[row.learner_id] = {}
         progressByLearner[row.learner_id][row.lesson_id] = row.completed
+        if (row.evidence_url) {
+          if (!evByLearner[row.learner_id]) evByLearner[row.learner_id] = {}
+          evByLearner[row.learner_id][row.lesson_id] = { url: row.evidence_url, type: row.evidence_type }
+        }
       }
+      setEvidenceByLearner(evByLearner)
 
       const rows = learnerIds
         .map((learnerId) => {
@@ -214,7 +231,7 @@ export default function Roster() {
         </div>
       )}
 
-      {/* Reflections by module */}
+      {/* Evidence + Reflections by module */}
       {roster.length > 0 && modules.length > 0 && (
         <div className="mt-10">
           <h2 className="mb-4 font-display text-xl font-semibold text-navy">
@@ -264,38 +281,53 @@ export default function Roster() {
                     </div>
                   </button>
 
-                  {isOpen && (
-                    <div className="border-t border-ink/10">
-                      <div className="grid grid-cols-[1fr_2fr] gap-4 border-b border-ink/10 px-5 py-2 text-xs font-medium uppercase tracking-wide text-ink/40">
-                        <span>Learner</span>
-                        <span>Reflection</span>
+                  {isOpen && (() => {
+                    const gatedLessons = (mod.lessons ?? []).filter(
+                      (l) => l.required_action !== 'none',
+                    )
+                    const hasEvidence = gatedLessons.length > 0
+                    const cols = hasEvidence ? 'grid-cols-[1fr_2fr_auto]' : 'grid-cols-[1fr_2fr]'
+                    return (
+                      <div className="border-t border-ink/10">
+                        <div className={`grid ${cols} gap-4 border-b border-ink/10 px-5 py-2 text-xs font-medium uppercase tracking-wide text-ink/40`}>
+                          <span>Learner</span>
+                          <span>Reflection</span>
+                          {hasEvidence && <span>Evidence</span>}
+                        </div>
+                        <ul className="divide-y divide-teal/10">
+                          {roster.map((learner) => {
+                            const text = modRefl[learner.id]
+                            const learnerEv = evidenceByLearner[learner.id] ?? {}
+                            return (
+                              <li key={learner.id} className={`grid ${cols} items-start gap-4 px-5 py-4`}>
+                                <p className="truncate text-sm font-medium text-ink">
+                                  {learner.name}
+                                </p>
+                                <p className={`text-sm leading-relaxed ${text && text.trim() ? 'text-ink/80' : 'italic text-ink/30'}`}>
+                                  {(text && text.trim()) || 'No reflection yet'}
+                                </p>
+                                {hasEvidence && (
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    {gatedLessons.map((lesson) => {
+                                      const ev = learnerEv[lesson.id]
+                                      if (!ev) return null
+                                      return (
+                                        <RosterEvidenceBadge
+                                          key={lesson.id}
+                                          evidence={ev}
+                                          label={lesson.title}
+                                        />
+                                      )
+                                    })}
+                                  </div>
+                                )}
+                              </li>
+                            )
+                          })}
+                        </ul>
                       </div>
-                      <ul className="divide-y divide-teal/10">
-                        {roster.map((learner) => {
-                          const text = modRefl[learner.id]
-                          return (
-                            <li
-                              key={learner.id}
-                              className="grid grid-cols-[1fr_2fr] gap-4 px-5 py-4"
-                            >
-                              <p className="truncate text-sm font-medium text-ink">
-                                {learner.name}
-                              </p>
-                              <p
-                                className={`text-sm leading-relaxed ${
-                                  text && text.trim()
-                                    ? 'text-ink/80'
-                                    : 'italic text-ink/30'
-                                }`}
-                              >
-                                {(text && text.trim()) || 'No reflection yet'}
-                              </p>
-                            </li>
-                          )
-                        })}
-                      </ul>
-                    </div>
-                  )}
+                    )
+                  })()}
                 </div>
               )
             })}
@@ -303,5 +335,51 @@ export default function Roster() {
         </div>
       )}
     </Layout>
+  )
+}
+
+// ── RosterEvidenceBadge ───────────────────────────────────────────────────────
+
+function RosterEvidenceBadge({ evidence, label }) {
+  if (evidence.type === 'link') {
+    return (
+      <a
+        href={evidence.url}
+        target="_blank"
+        rel="noreferrer"
+        title={`Evidence: ${label}`}
+        aria-label={`View link evidence for ${label}`}
+        className="flex h-6 w-6 items-center justify-center rounded-full bg-teal-tint text-teal transition-colors hover:bg-teal hover:text-white"
+      >
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3" aria-hidden="true">
+          <path d="M6.5 9.5a3.18 3.18 0 004.5 0l2-2a3.18 3.18 0 00-4.5-4.5l-1 1" />
+          <path d="M9.5 6.5a3.18 3.18 0 00-4.5 0l-2 2a3.18 3.18 0 004.5 4.5l1-1" />
+        </svg>
+      </a>
+    )
+  }
+  return <RosterFileEvidenceBadge url={evidence.url} label={label} />
+}
+
+function RosterFileEvidenceBadge({ url, label }) {
+  const [href, setHref] = useState(null)
+  useEffect(() => {
+    getFileUrl(url).then((resolved) => setHref(resolved ?? null))
+  }, [url])
+  return (
+    <a
+      href={href ?? '#'}
+      target={href ? '_blank' : undefined}
+      rel="noreferrer"
+      title={`Evidence: ${label}`}
+      aria-label={`View file evidence for ${label}`}
+      onClick={!href ? (e) => e.preventDefault() : undefined}
+      className="flex h-6 w-6 items-center justify-center rounded-full bg-orange-tint text-orange transition-colors hover:bg-orange hover:text-white"
+    >
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3" aria-hidden="true">
+        <path d="M9.5 2H4a1 1 0 00-1 1v10a1 1 0 001 1h8a1 1 0 001-1V5.5L9.5 2z" />
+        <path d="M9.5 2v3.5H13" />
+      </svg>
+    </a>
   )
 }

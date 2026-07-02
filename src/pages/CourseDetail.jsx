@@ -7,11 +7,13 @@ import { useAuth } from '../contexts/AuthContext'
 
 export default function CourseDetail() {
   const { id } = useParams()
-  const { session } = useAuth()
+  const { session, profile } = useAuth()
   const userId = session?.user?.id
 
   const [course, setCourse] = useState(null)
   const [loading, setLoading] = useState(true)
+  // Incrementing this triggers a full re-fetch (used after enrollment)
+  const [fetchTrigger, setFetchTrigger] = useState(0)
   const [openLessons, setOpenLessons] = useState({})
 
   // enrollment
@@ -21,6 +23,7 @@ export default function CourseDetail() {
 
   // progress: { [lessonId]: boolean }
   const [progress, setProgress] = useState({})
+  const [evidenceMap, setEvidenceMap] = useState({})  // { [lessonId]: { url, type } }
   const [toggling, setToggling] = useState(new Set())
 
   // quiz attempts: { [quizId]: { count, bestScore } }
@@ -47,7 +50,7 @@ export default function CourseDetail() {
             modules (
               id, title, order_index, outcome, reflective_question,
               quizzes ( id, title, passing_score, max_attempts ),
-              lessons ( id, title, content, order_index ),
+              lessons ( id, title, content, order_index, required_action, action_prompt ),
               assignments ( id, title, instructions, submission_type,
                 assignment_questions ( id, prompt, order_index )
               )
@@ -63,7 +66,7 @@ export default function CourseDetail() {
           .maybeSingle(),
         supabase
           .from('lesson_progress')
-          .select('lesson_id, completed')
+          .select('lesson_id, completed, evidence_url, evidence_type')
           .eq('learner_id', userId),
         supabase
           .from('quiz_attempts')
@@ -101,10 +104,13 @@ export default function CourseDetail() {
       setEnrolled(!enrollRes.error && !!enrollRes.data)
 
       const map = {}
+      const evMap = {}
       for (const row of progressRes.data ?? []) {
         map[row.lesson_id] = row.completed
+        if (row.evidence_url) evMap[row.lesson_id] = { url: row.evidence_url, type: row.evidence_type }
       }
       setProgress(map)
+      setEvidenceMap(evMap)
 
       const attMap = {}
       for (const row of attemptsRes.data ?? []) {
@@ -186,7 +192,7 @@ export default function CourseDetail() {
     }
 
     init()
-  }, [id, userId])
+  }, [id, userId, fetchTrigger])
 
   async function handleEnroll() {
     setEnrolling(true)
@@ -196,33 +202,44 @@ export default function CourseDetail() {
       .insert({ course_id: id, learner_id: userId })
     if (error) {
       setEnrollError('Could not enroll — try again.')
-    } else {
-      setEnrolled(true)
+      setEnrolling(false)
+      return
     }
     setEnrolling(false)
+    // Re-fetch the full course content (modules/lessons now visible via RLS)
+    setFetchTrigger((t) => t + 1)
   }
 
-  async function toggleProgress(lessonId) {
+  async function toggleProgress(lessonId, evidence = null) {
     const current = !!progress[lessonId]
     const next = !current
 
     // Optimistic update so the progress bar reacts instantly
     setProgress((prev) => ({ ...prev, [lessonId]: next }))
+    if (next && evidence) setEvidenceMap((m) => ({ ...m, [lessonId]: evidence }))
+    if (!next) setEvidenceMap((m) => { const n = { ...m }; delete n[lessonId]; return n })
     setToggling((prev) => new Set(prev).add(lessonId))
 
+    const upsertData = {
+      lesson_id: lessonId,
+      learner_id: userId,
+      completed: next,
+      completed_at: next ? new Date().toISOString() : null,
+    }
+    if (next && evidence) {
+      upsertData.evidence_url = evidence.url
+      upsertData.evidence_type = evidence.type
+    }
+
     const { error } = await supabase.from('lesson_progress').upsert(
-      {
-        lesson_id: lessonId,
-        learner_id: userId,
-        completed: next,
-        completed_at: next ? new Date().toISOString() : null,
-      },
+      upsertData,
       { onConflict: 'lesson_id,learner_id' },
     )
 
     if (error) {
       // Revert on failure
       setProgress((prev) => ({ ...prev, [lessonId]: current }))
+      if (next && evidence) setEvidenceMap((m) => { const n = { ...m }; delete n[lessonId]; return n })
     }
 
     setToggling((prev) => {
@@ -268,6 +285,22 @@ export default function CourseDetail() {
             Back to catalog
           </Link>
         </div>
+      </Layout>
+    )
+  }
+
+  // Non-enrolled learners see a preview; instructors and admins always see full content
+  const isPrivileged =
+    profile?.role === 'instructor' || profile?.role === 'admin'
+  if (!enrolled && !isPrivileged) {
+    return (
+      <Layout>
+        <CoursePreview
+          course={course}
+          enrolling={enrolling}
+          enrollError={enrollError}
+          onEnroll={handleEnroll}
+        />
       </Layout>
     )
   }
@@ -494,9 +527,12 @@ export default function CourseDetail() {
                         completed={!!progress[lesson.id]}
                         toggling={isUnlocked ? toggling.has(lesson.id) : false}
                         onToggleComplete={
-                          isUnlocked ? () => toggleProgress(lesson.id) : undefined
+                          isUnlocked ? (ev) => toggleProgress(lesson.id, ev) : undefined
                         }
                         courseId={id}
+                        requiredAction={lesson.required_action ?? 'none'}
+                        actionPrompt={lesson.action_prompt ?? ''}
+                        evidence={evidenceMap[lesson.id] ?? null}
                       />
                     ))}
                   </ul>
@@ -936,7 +972,57 @@ function SubmissionDisplay({ submission, isSingle, questions, savedAnswers, stat
   )
 }
 
-function LessonRow({ lesson, open, onToggle, enrolled, completed, toggling, onToggleComplete, locked, courseId }) {
+function LessonRow({
+  lesson, open, onToggle, enrolled, completed, toggling, onToggleComplete,
+  locked, courseId, requiredAction, actionPrompt, evidence,
+}) {
+  const ra = requiredAction ?? 'none'
+  const [panelOpen, setPanelOpen] = useState(false)
+  const [evidenceInput, setEvidenceInput] = useState('')
+  const [evidenceFile, setEvidenceFile] = useState(null)
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState('')
+
+  const evidenceReady =
+    (ra === 'link' && evidenceInput.trim().startsWith('http')) ||
+    (ra === 'file' && evidenceFile !== null)
+
+  function handleMarkDone() {
+    if (completed) {
+      onToggleComplete()
+    } else if (ra === 'none') {
+      onToggleComplete()
+    } else {
+      setPanelOpen((o) => !o)
+    }
+  }
+
+  async function handleEvidenceSubmit() {
+    setUploadError('')
+    if (ra === 'link') {
+      if (!evidenceInput.trim().startsWith('http')) {
+        setUploadError('URL must start with http.')
+        return
+      }
+      setPanelOpen(false)
+      onToggleComplete({ url: evidenceInput.trim(), type: 'link' })
+      setEvidenceInput('')
+    } else {
+      if (!evidenceFile) { setUploadError('Please select a file.'); return }
+      setUploading(true)
+      const ext = evidenceFile.name.split('.').pop()
+      const path = `lesson-evidence/${lesson.id}/${crypto.randomUUID()}.${ext}`
+      const { error: upErr } = await supabase.storage
+        .from('course-files')
+        .upload(path, evidenceFile)
+      setUploading(false)
+      if (upErr) { setUploadError(upErr.message ?? 'Upload failed.'); return }
+      setPanelOpen(false)
+      onToggleComplete({ url: path, type: 'file' })
+      setEvidenceFile(null)
+    }
+  }
+
   return (
     <li>
       <div className="flex items-center gap-3 px-6 py-4">
@@ -952,36 +1038,17 @@ function LessonRow({ lesson, open, onToggle, enrolled, completed, toggling, onTo
               }`}
             >
               {completed ? (
-                <svg
-                  viewBox="0 0 16 16"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="h-3 w-3 text-white"
-                  aria-hidden="true"
-                >
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3 text-white" aria-hidden="true">
                   <path d="M2.5 8.5l3.5 3.5 7-7" />
                 </svg>
               ) : (
-                <svg
-                  viewBox="0 0 16 16"
-                  fill="currentColor"
-                  className="h-3 w-3 text-orange"
-                  aria-hidden="true"
-                >
+                <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3 text-orange" aria-hidden="true">
                   <path d="M3 2.5l10 5.5-10 5.5V2.5z" />
                 </svg>
               )}
             </span>
             <span className="flex-1 text-sm font-medium text-ink">{lesson.title}</span>
-            <svg
-              viewBox="0 0 16 16"
-              fill="currentColor"
-              className="h-3 w-3 shrink-0 text-ink/30"
-              aria-hidden="true"
-            >
+            <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3 shrink-0 text-ink/30" aria-hidden="true">
               <path d="M5 3l7 5-7 5V3z" />
             </svg>
           </Link>
@@ -1001,65 +1068,108 @@ function LessonRow({ lesson, open, onToggle, enrolled, completed, toggling, onTo
               }`}
             >
               {!locked && completed ? (
-                <svg
-                  viewBox="0 0 16 16"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="h-3 w-3 text-white"
-                  aria-hidden="true"
-                >
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3 text-white" aria-hidden="true">
                   <path d="M2.5 8.5l3.5 3.5 7-7" />
                 </svg>
               ) : !locked ? (
-                <svg
-                  viewBox="0 0 16 16"
-                  fill="currentColor"
-                  className="h-3 w-3 text-orange"
-                  aria-hidden="true"
-                >
+                <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3 text-orange" aria-hidden="true">
                   <path d="M3 2.5l10 5.5-10 5.5V2.5z" />
                 </svg>
               ) : null}
             </span>
-            <span
-              className={`flex-1 text-sm font-medium ${locked ? 'text-ink/40' : 'text-ink'}`}
-            >
+            <span className={`flex-1 text-sm font-medium ${locked ? 'text-ink/40' : 'text-ink'}`}>
               {lesson.title}
             </span>
             {!locked && (
-              <svg
-                viewBox="0 0 16 16"
-                fill="currentColor"
-                className={`h-3 w-3 shrink-0 text-ink/30 transition-transform ${
-                  open ? 'rotate-180' : ''
-                }`}
-                aria-hidden="true"
-              >
+              <svg viewBox="0 0 16 16" fill="currentColor" className={`h-3 w-3 shrink-0 text-ink/30 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true">
                 <path d="M2 5l6 6 6-6H2z" />
               </svg>
             )}
           </button>
         )}
 
-        {/* mark done — only when enrolled and module is unlocked */}
+        {/* Mark done + optional evidence icon */}
         {enrolled && !locked && (
-          <button
-            onClick={onToggleComplete}
-            disabled={toggling}
-            aria-label={completed ? 'Mark as incomplete' : 'Mark as complete'}
-            className={`shrink-0 rounded-md px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50 ${
-              completed
-                ? 'bg-orange/10 text-navy hover:bg-orange/20'
-                : 'bg-orange-tint text-navy hover:bg-orange/20'
-            }`}
-          >
-            {completed ? 'Done ✓' : 'Mark done'}
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            {/* Evidence icon when lesson is done and evidence was submitted */}
+            {completed && evidence && ra !== 'none' && (
+              evidence.type === 'link' ? (
+                <a
+                  href={evidence.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  title="View submitted evidence"
+                  className="flex h-5 w-5 items-center justify-center rounded-full bg-teal-tint text-teal transition-colors hover:bg-teal hover:text-white"
+                  aria-label="View evidence link"
+                >
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="h-2.5 w-2.5" aria-hidden="true">
+                    <path d="M6.5 9.5a3.18 3.18 0 004.5 0l2-2a3.18 3.18 0 00-4.5-4.5l-1 1" />
+                    <path d="M9.5 6.5a3.18 3.18 0 00-4.5 0l-2 2a3.18 3.18 0 004.5 4.5l1-1" />
+                  </svg>
+                </a>
+              ) : (
+                <FileEvidenceIcon url={evidence.url} label={lesson.title} />
+              )
+            )}
+            <button
+              onClick={handleMarkDone}
+              disabled={toggling}
+              aria-label={completed ? 'Mark as incomplete' : 'Mark as complete'}
+              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50 ${
+                completed
+                  ? 'bg-orange/10 text-navy hover:bg-orange/20'
+                  : ra !== 'none'
+                  ? 'bg-orange-tint text-navy ring-1 ring-orange/30 hover:bg-orange/20'
+                  : 'bg-orange-tint text-navy hover:bg-orange/20'
+              }`}
+            >
+              {completed ? 'Done ✓' : ra !== 'none' ? 'Submit & done' : 'Mark done'}
+            </button>
+          </div>
         )}
       </div>
+
+      {/* Inline evidence panel — for action-gated lessons not yet done */}
+      {panelOpen && enrolled && !locked && !completed && (
+        <div className="border-t border-line bg-orange-tint/30 px-6 py-4">
+          {actionPrompt && (
+            <p className="mb-2.5 text-[13px] font-semibold text-ink">{actionPrompt}</p>
+          )}
+          {ra === 'link' ? (
+            <input
+              type="url"
+              placeholder="https://…"
+              value={evidenceInput}
+              onChange={(e) => setEvidenceInput(e.target.value)}
+              className="efac-input mb-2.5 text-[13px]"
+            />
+          ) : (
+            <input
+              type="file"
+              onChange={(e) => setEvidenceFile(e.target.files?.[0] ?? null)}
+              className="mb-2.5 block text-[13px] text-ink/70 file:mr-3 file:cursor-pointer file:rounded-btn file:border-0 file:bg-orange-tint file:px-3 file:py-1.5 file:text-[13px] file:font-semibold file:text-ink"
+            />
+          )}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleEvidenceSubmit}
+              disabled={!evidenceReady || uploading}
+              className="efac-btn efac-btn-sm"
+            >
+              {uploading ? 'Uploading…' : 'Submit & mark done'}
+            </button>
+            <button
+              onClick={() => { setPanelOpen(false); setEvidenceInput(''); setEvidenceFile(null); setUploadError('') }}
+              className="text-[13px] text-muted transition-colors hover:text-ink"
+            >
+              Cancel
+            </button>
+          </div>
+          {uploadError && (
+            <p className="mt-2 text-[13px] text-clay">{uploadError}</p>
+          )}
+        </div>
+      )}
 
       {/* Inline lesson content — only for non-enrolled preview */}
       {!enrolled && !locked && open && (
@@ -1077,6 +1187,29 @@ function LessonRow({ lesson, open, onToggle, enrolled, completed, toggling, onTo
   )
 }
 
+function FileEvidenceIcon({ url, label }) {
+  const [href, setHref] = useState(null)
+  useEffect(() => {
+    import('../lib/files').then(({ getFileUrl }) => getFileUrl(url).then(setHref))
+  }, [url])
+  return (
+    <a
+      href={href ?? '#'}
+      target={href ? '_blank' : undefined}
+      rel="noreferrer"
+      title={`View file evidence: ${label}`}
+      aria-label="View evidence file"
+      onClick={!href ? (e) => e.preventDefault() : undefined}
+      className="flex h-5 w-5 items-center justify-center rounded-full bg-orange-tint text-orange transition-colors hover:bg-orange hover:text-white"
+    >
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="h-2.5 w-2.5" aria-hidden="true">
+        <path d="M9.5 2H4a1 1 0 00-1 1v10a1 1 0 001 1h8a1 1 0 001-1V5.5L9.5 2z" />
+        <path d="M9.5 2v3.5H13" />
+      </svg>
+    </a>
+  )
+}
+
 function LockIcon() {
   return (
     <svg
@@ -1091,5 +1224,106 @@ function LockIcon() {
         clipRule="evenodd"
       />
     </svg>
+  )
+}
+
+// ── CoursePreview ─────────────────────────────────────────────────────────────
+// Shown to authenticated users who aren't enrolled.
+// course.modules may be empty (RLS blocks nested data for non-enrolled); the
+// preview degrades gracefully — module titles shown when available, hidden otherwise.
+
+function CoursePreview({ course, enrolling, enrollError, onEnroll }) {
+  // modules / lessons may be empty if RLS returns nothing for non-enrolled users
+  const modules = course.modules ?? []
+  const totalLessons = modules.reduce((sum, m) => sum + (m.lessons?.length ?? 0), 0)
+
+  return (
+    <div className="space-y-6">
+      {/* Cover image */}
+      <div className="overflow-hidden rounded-xl">
+        {course.cover_image ? (
+          <img
+            src={course.cover_image}
+            alt={course.title}
+            className="h-52 w-full object-cover"
+          />
+        ) : (
+          <div className="flex h-52 w-full items-center justify-center bg-gradient-to-br from-teal to-teal-dark">
+            <span
+              className="select-none font-display text-6xl font-bold text-white/20"
+              aria-hidden="true"
+            >
+              {course.title.charAt(0).toUpperCase()}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Title + description */}
+      <div>
+        <h1 className="font-display text-[28px] font-semibold leading-tight text-ink">
+          {course.title}
+        </h1>
+        {course.description && (
+          <p className="mt-2 text-[15px] leading-relaxed text-muted">
+            {course.description}
+          </p>
+        )}
+      </div>
+
+      {/* Summary + topic list */}
+      <div className="efac-card p-5">
+        {/* Stats row — only when we have data */}
+        {(modules.length > 0 || totalLessons > 0) && (
+          <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1">
+            {modules.length > 0 && (
+              <span className="text-[14px] font-semibold text-ink">
+                {modules.length}&nbsp;topic{modules.length !== 1 ? 's' : ''}
+              </span>
+            )}
+            {modules.length > 0 && totalLessons > 0 && (
+              <span className="text-muted" aria-hidden="true">·</span>
+            )}
+            {totalLessons > 0 && (
+              <span className="text-[14px] font-semibold text-ink">
+                {totalLessons}&nbsp;lesson{totalLessons !== 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Module title list */}
+        {modules.length > 0 ? (
+          <ol className="space-y-2">
+            {modules.map((mod, mi) => (
+              <li key={mod.id} className="flex items-start gap-2.5">
+                <span className="mt-0.5 shrink-0 rounded-full bg-orange-tint px-2 py-0.5 text-[11px] font-extrabold text-orange">
+                  {mi + 1}
+                </span>
+                <span className="text-[14px] text-ink">{mod.title}</span>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p className="text-[14px] text-muted">
+            Enroll to see the full course content.
+          </p>
+        )}
+      </div>
+
+      {/* Enroll CTA */}
+      <div className="flex items-center gap-4">
+        <button
+          onClick={onEnroll}
+          disabled={enrolling}
+          className="efac-btn"
+        >
+          {enrolling ? 'Enrolling…' : 'Enroll to start learning'}
+        </button>
+        {enrollError && (
+          <p className="text-[14px] text-clay">{enrollError}</p>
+        )}
+      </div>
+    </div>
   )
 }

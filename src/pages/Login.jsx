@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { AuthShell, Field, inputClass, btnClass } from './Signup'
+import { AuthShell, Field, btnClass, PasswordInput } from './Signup'
 
 export default function Login() {
   const { signIn } = useAuth()
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -31,19 +32,28 @@ export default function Login() {
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className={inputClass}
+            className="w-full rounded-lg border border-ink/20 bg-white px-3 py-2 text-ink outline-none focus:border-teal focus:ring-2 focus:ring-teal/20"
           />
         </Field>
-        <Field label="Password" id="password">
-          <input
-            id="password"
-            type="password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className={inputClass}
-          />
-        </Field>
+        <div>
+          <Field label="Password" id="password">
+            <PasswordInput
+              id="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              show={showPassword}
+              onToggle={() => setShowPassword((v) => !v)}
+            />
+          </Field>
+          <div className="mt-1 text-right">
+            <Link
+              to="/forgot-password"
+              className="text-xs font-medium text-teal hover:underline"
+            >
+              Forgot password?
+            </Link>
+          </div>
+        </div>
         {error && <p className="text-sm text-clay">{error}</p>}
         <button type="submit" disabled={busy} className={btnClass}>
           {busy ? 'Signing in…' : 'Sign in'}
