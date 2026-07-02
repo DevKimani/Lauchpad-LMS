@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import FileLink from '../components/FileLink'
 import { getFileUrl } from '../lib/files'
 import { supabase } from '../lib/supabase'
-import { getFileUrl } from '../lib/files'
+
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Lesson Player  — EFAC hi-fi design 4c
