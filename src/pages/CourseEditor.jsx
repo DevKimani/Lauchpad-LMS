@@ -684,6 +684,7 @@ export default function CourseEditor() {
                             <option value="none">None — learners mark done freely</option>
                             <option value="link">Link — learners must submit a URL</option>
                             <option value="file">File — learners must upload a file</option>
+                            <option value="text">Written response — learners type a response</option>
                           </select>
                         </Field>
 
@@ -695,6 +696,8 @@ export default function CourseEditor() {
                               placeholder={
                                 lesson.required_action === 'link'
                                   ? 'e.g. Share a link to your completed project…'
+                                  : lesson.required_action === 'text'
+                                  ? 'e.g. Describe the key insight you took from this lesson…'
                                   : 'e.g. Upload a photo of your finished work…'
                               }
                               value={lesson.action_prompt}

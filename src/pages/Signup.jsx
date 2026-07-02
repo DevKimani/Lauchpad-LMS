@@ -7,6 +7,7 @@ export default function Signup() {
   const { signUp } = useAuth()
   const navigate = useNavigate()
   const [fullName, setFullName] = useState('')
+  const [efacId, setEfacId] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -27,10 +28,14 @@ export default function Signup() {
       return
     }
     setBusy(true)
-    const { error } = await signUp({ email, password, fullName })
+    const { error } = await signUp({ email, password, fullName, efacId: efacId.trim() })
     setBusy(false)
-    if (error) setError(error.message)
-    else navigate('/dashboard')
+    if (error) {
+      const isUnique = error.code === '23505' || error.message?.includes('efac_id')
+      setError(isUnique ? 'This EFAC ID is already registered' : error.message)
+    } else {
+      navigate('/dashboard')
+    }
   }
 
   return (
@@ -43,6 +48,17 @@ export default function Signup() {
             required
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
+            className={inputClass}
+          />
+        </Field>
+        <Field label="EFAC ID" id="efacId">
+          <input
+            id="efacId"
+            type="text"
+            required
+            placeholder="EFAC-2026-0123"
+            value={efacId}
+            onChange={(e) => setEfacId(e.target.value)}
             className={inputClass}
           />
         </Field>

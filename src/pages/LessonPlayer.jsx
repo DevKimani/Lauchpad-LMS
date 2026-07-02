@@ -28,6 +28,7 @@ export default function LessonPlayer() {
   const [evidenceMap, setEvidenceMap] = useState({})   // { [lessonId]: { url, type } }
   const [evidenceInput, setEvidenceInput] = useState('')
   const [evidenceFile, setEvidenceFile] = useState(null)
+  const [evidenceText, setEvidenceText] = useState('')
   const [replacing, setReplacing] = useState(false)
 
   // ── Data loading ────────────────────────────────────────────────────────────
@@ -49,7 +50,7 @@ export default function LessonPlayer() {
           .single(),
         supabase
           .from('lesson_progress')
-          .select('lesson_id, completed, evidence_url, evidence_type')
+          .select('lesson_id, completed, evidence_url, evidence_type, evidence_text')
           .eq('learner_id', userId),
         supabase
           .from('submissions')
@@ -90,7 +91,10 @@ export default function LessonPlayer() {
       const evMap = {}
       for (const r of progressRes.data ?? []) {
         pMap[r.lesson_id] = r.completed
-        if (r.evidence_url) evMap[r.lesson_id] = { url: r.evidence_url, type: r.evidence_type }
+        if (r.evidence_url || r.evidence_text) {
+          const type = r.evidence_type ?? (r.evidence_text ? 'text' : null)
+          evMap[r.lesson_id] = { url: r.evidence_url, type, text: r.evidence_text }
+        }
       }
       setProgress(pMap)
       setEvidenceMap(evMap)
@@ -109,6 +113,7 @@ export default function LessonPlayer() {
     setActiveTab('overview')
     setEvidenceInput('')
     setEvidenceFile(null)
+    setEvidenceText('')
     setReplacing(false)
   }, [lessonId])
 
@@ -162,7 +167,8 @@ export default function LessonPlayer() {
     ra === 'none' ||
     (!!existingEvidence && !replacing) ||
     (ra === 'link' && evidenceInput.trim().startsWith('http')) ||
-    (ra === 'file' && evidenceFile !== null)
+    (ra === 'file' && evidenceFile !== null) ||
+    (ra === 'text' && evidenceText.trim().length >= 20)
 
   // Resources for the active module
   const moduleResources = resources[currentModule?.id] ?? []
@@ -189,6 +195,7 @@ export default function LessonPlayer() {
     // Collect / upload evidence
     let evUrl = null
     let evType = null
+    let evText = null
     if (ra === 'link' && evidenceInput.trim()) {
       evUrl = evidenceInput.trim()
       evType = 'link'
@@ -201,6 +208,8 @@ export default function LessonPlayer() {
       if (upErr) { setMarking(false); return }
       evUrl = path
       evType = 'file'
+    } else if (ra === 'text' && evidenceText.trim()) {
+      evText = evidenceText.trim()
     }
 
     const upsertData = {
@@ -209,6 +218,7 @@ export default function LessonPlayer() {
       completed: true,
       completed_at: new Date().toISOString(),
       ...(evUrl ? { evidence_url: evUrl, evidence_type: evType } : {}),
+      ...(evText ? { evidence_text: evText } : {}),
     }
 
     const { error } = await supabase.from('lesson_progress').upsert(
@@ -218,9 +228,11 @@ export default function LessonPlayer() {
     if (!error) {
       setProgress((p) => ({ ...p, [lessonId]: true }))
       if (evUrl) setEvidenceMap((m) => ({ ...m, [lessonId]: { url: evUrl, type: evType } }))
+      if (evText) setEvidenceMap((m) => ({ ...m, [lessonId]: { type: 'text', text: evText } }))
       setReplacing(false)
       setEvidenceInput('')
       setEvidenceFile(null)
+      setEvidenceText('')
     }
 
     setMarking(false)
@@ -371,6 +383,8 @@ export default function LessonPlayer() {
             setEvidenceInput={setEvidenceInput}
             evidenceFile={evidenceFile}
             setEvidenceFile={setEvidenceFile}
+            evidenceText={evidenceText}
+            setEvidenceText={setEvidenceText}
             replacing={replacing}
             setReplacing={setReplacing}
           />
@@ -548,14 +562,18 @@ function NotesTab({ notes, onChange }) {
 
 function EvidencePanel({
   lesson, evidenceMap, evidenceInput, setEvidenceInput,
-  evidenceFile, setEvidenceFile, replacing, setReplacing,
+  evidenceFile, setEvidenceFile, evidenceText, setEvidenceText,
+  replacing, setReplacing,
 }) {
   const ra = lesson?.required_action ?? 'none'
   if (ra === 'none') return null
 
   const existing = evidenceMap[lesson.id]
-  const prompt = lesson.action_prompt
-    || (ra === 'link' ? 'Share a link as evidence of your work' : 'Upload a file as evidence of your work')
+  const defaultPrompt =
+    ra === 'link' ? 'Share a link as evidence of your work'
+    : ra === 'file' ? 'Upload a file as evidence of your work'
+    : 'Write your response below'
+  const prompt = lesson.action_prompt || defaultPrompt
 
   return (
     <div className="border-y border-line bg-orange-tint/40 px-6 py-5">
@@ -564,37 +582,48 @@ function EvidencePanel({
       {existing && !replacing ? (
         /* Show previously submitted evidence */
         <div className="flex flex-wrap items-center gap-3">
-          <span className="flex items-center gap-1.5 rounded-full bg-card px-3 py-1.5 text-[12px] font-medium text-teal ring-1 ring-line">
-            {existing.type === 'link' ? (
-              <>
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3 shrink-0" aria-hidden="true">
-                  <path d="M6.5 9.5a3.18 3.18 0 004.5 0l2-2a3.18 3.18 0 00-4.5-4.5l-1 1" />
-                  <path d="M9.5 6.5a3.18 3.18 0 00-4.5 0l-2 2a3.18 3.18 0 004.5 4.5l1-1" />
-                </svg>
-                <a
-                  href={existing.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="max-w-[220px] truncate hover:underline"
-                >
-                  {existing.url}
-                </a>
-              </>
-            ) : (
-              <>
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3 shrink-0" aria-hidden="true">
-                  <path d="M9.5 2H4a1 1 0 00-1 1v10a1 1 0 001 1h8a1 1 0 001-1V5.5L9.5 2z" />
-                  <path d="M9.5 2v3.5H13" />
-                </svg>
-                <FileLink value={existing.url} label="View file" className="hover:underline" />
-              </>
-            )}
-          </span>
+          {existing.type === 'text' ? (
+            <div className="w-full rounded-xl border border-line bg-card px-4 py-3">
+              <p className="text-[13px] leading-relaxed text-ink/80 whitespace-pre-wrap">
+                {existing.text}
+              </p>
+            </div>
+          ) : (
+            <span className="flex items-center gap-1.5 rounded-full bg-card px-3 py-1.5 text-[12px] font-medium text-teal ring-1 ring-line">
+              {existing.type === 'link' ? (
+                <>
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3 shrink-0" aria-hidden="true">
+                    <path d="M6.5 9.5a3.18 3.18 0 004.5 0l2-2a3.18 3.18 0 00-4.5-4.5l-1 1" />
+                    <path d="M9.5 6.5a3.18 3.18 0 00-4.5 0l-2 2a3.18 3.18 0 004.5 4.5l1-1" />
+                  </svg>
+                  <a
+                    href={existing.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="max-w-[220px] truncate hover:underline"
+                  >
+                    {existing.url}
+                  </a>
+                </>
+              ) : (
+                <>
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3 shrink-0" aria-hidden="true">
+                    <path d="M9.5 2H4a1 1 0 00-1 1v10a1 1 0 001 1h8a1 1 0 001-1V5.5L9.5 2z" />
+                    <path d="M9.5 2v3.5H13" />
+                  </svg>
+                  <FileLink value={existing.url} label="View file" className="hover:underline" />
+                </>
+              )}
+            </span>
+          )}
           <button
-            onClick={() => setReplacing(true)}
+            onClick={() => {
+              if (ra === 'text') setEvidenceText(existing.text ?? '')
+              setReplacing(true)
+            }}
             className="text-[12px] text-muted transition-colors hover:text-ink"
           >
-            Replace
+            {ra === 'text' ? 'Edit' : 'Replace'}
           </button>
         </div>
       ) : (
@@ -608,6 +637,14 @@ function EvidencePanel({
               onChange={(e) => setEvidenceInput(e.target.value)}
               className="efac-input text-[13px]"
             />
+          ) : ra === 'text' ? (
+            <textarea
+              rows={4}
+              placeholder="Write your response here (at least 20 characters)…"
+              value={evidenceText}
+              onChange={(e) => setEvidenceText(e.target.value)}
+              className="efac-input resize-y text-[13px]"
+            />
           ) : (
             <input
               type="file"
@@ -617,7 +654,7 @@ function EvidencePanel({
           )}
           {replacing && (
             <button
-              onClick={() => { setReplacing(false); setEvidenceInput(''); setEvidenceFile(null) }}
+              onClick={() => { setReplacing(false); setEvidenceInput(''); setEvidenceFile(null); setEvidenceText('') }}
               className="text-[12px] text-muted transition-colors hover:text-ink"
             >
               Cancel

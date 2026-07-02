@@ -240,6 +240,9 @@ function LearnerHome() {
               <p className="mt-1.5 text-[15px] text-muted">
                 Pick a course below and start learning today.
               </p>
+              {profile?.efac_id && (
+                <p className="mt-1 text-[12px] font-medium text-ink/35">{profile.efac_id}</p>
+              )}
             </div>
 
             {/* Hero empty-state card */}
@@ -316,6 +319,9 @@ function LearnerHome() {
                   <> &middot; {inProgressItems.length} in progress</>
                 )}
               </p>
+              {profile?.efac_id && (
+                <p className="mt-1 text-[12px] font-medium text-ink/35">{profile.efac_id}</p>
+              )}
             </div>
 
             {/* Streak card — shown only when derivable and > 1 day */}

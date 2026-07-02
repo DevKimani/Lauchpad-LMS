@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import Layout from '../components/Layout'
 import FileLink from '../components/FileLink'
+import SurveyForm from '../components/SurveyForm'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -37,12 +38,16 @@ export default function CourseDetail() {
   const [resources, setResources] = useState({})
   // reflections: { [moduleId]: reflection_row }
   const [reflections, setReflections] = useState({})
+  // surveys: [{ id, kind, title }]
+  const [surveys, setSurveys] = useState([])
+  // surveyDone: { [surveyId]: true }
+  const [surveyDone, setSurveyDone] = useState({})
 
   useEffect(() => {
     if (!userId) return
 
     async function init() {
-      const [courseRes, enrollRes, progressRes, attemptsRes] = await Promise.all([
+      const [courseRes, enrollRes, progressRes, attemptsRes, surveyRes] = await Promise.all([
         supabase
           .from('courses')
           .select(`
@@ -66,12 +71,16 @@ export default function CourseDetail() {
           .maybeSingle(),
         supabase
           .from('lesson_progress')
-          .select('lesson_id, completed, evidence_url, evidence_type')
+          .select('lesson_id, completed, evidence_url, evidence_type, evidence_text')
           .eq('learner_id', userId),
         supabase
           .from('quiz_attempts')
           .select('quiz_id, score, passed')
           .eq('learner_id', userId),
+        supabase
+          .from('surveys')
+          .select('id, kind, title')
+          .eq('course_id', id),
       ])
 
       if (!courseRes.error && courseRes.data) {
@@ -107,7 +116,10 @@ export default function CourseDetail() {
       const evMap = {}
       for (const row of progressRes.data ?? []) {
         map[row.lesson_id] = row.completed
-        if (row.evidence_url) evMap[row.lesson_id] = { url: row.evidence_url, type: row.evidence_type }
+        if (row.evidence_url || row.evidence_text) {
+          const type = row.evidence_type ?? (row.evidence_text ? 'text' : null)
+          evMap[row.lesson_id] = { url: row.evidence_url, type, text: row.evidence_text }
+        }
       }
       setProgress(map)
       setEvidenceMap(evMap)
@@ -125,6 +137,19 @@ export default function CourseDetail() {
         }
       }
       setQuizAttempts(attMap)
+
+      const surveyList = surveyRes.data ?? []
+      setSurveys(surveyList)
+      if (surveyList.length > 0) {
+        const { data: respData } = await supabase
+          .from('survey_responses')
+          .select('survey_id')
+          .eq('learner_id', userId)
+          .in('survey_id', surveyList.map((s) => s.id))
+        const done = {}
+        for (const r of respData ?? []) done[r.survey_id] = true
+        setSurveyDone(done)
+      }
 
       // Fetch resources, reflections, and submissions in parallel
       if (!courseRes.error && courseRes.data) {
@@ -227,8 +252,12 @@ export default function CourseDetail() {
       completed_at: next ? new Date().toISOString() : null,
     }
     if (next && evidence) {
-      upsertData.evidence_url = evidence.url
-      upsertData.evidence_type = evidence.type
+      if (evidence.type === 'text') {
+        upsertData.evidence_text = evidence.text
+      } else {
+        upsertData.evidence_url = evidence.url
+        upsertData.evidence_type = evidence.type
+      }
     }
 
     const { error } = await supabase.from('lesson_progress').upsert(
@@ -317,6 +346,12 @@ export default function CourseDetail() {
     return allLessonsComplete && assignmentDone
   })
 
+  const preSurvey = surveys.find((s) => s.kind === 'pre') ?? null
+  const postSurvey = surveys.find((s) => s.kind === 'post') ?? null
+  const preSurveyDone = !preSurvey || !!surveyDone[preSurvey.id]
+  const postSurveyDone = !postSurvey || !!surveyDone[postSurvey.id]
+  const allModulesDone = moduleStatuses.length > 0 && moduleStatuses.every(Boolean)
+
   return (
     <Layout>
       {course.cover_image ? (
@@ -367,13 +402,36 @@ export default function CourseDetail() {
         </div>
       ) : null}
 
+      {/* Pre-survey gate */}
+      {enrolled && !isPrivileged && preSurvey && !preSurveyDone && (
+        <div className="mb-6 overflow-hidden rounded-xl border border-teal/20 bg-white">
+          <div className="border-b border-teal/10 bg-teal-tint/40 px-6 py-4">
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-teal">
+              Before you begin
+            </p>
+            <h2 className="font-display text-xl font-semibold text-navy">
+              {preSurvey.title}
+            </h2>
+            <p className="mt-1 text-sm text-ink/60">
+              This helps us understand where you're starting from — it takes about 5 minutes.
+            </p>
+          </div>
+          <div className="px-6 py-5">
+            <SurveyForm
+              surveyId={preSurvey.id}
+              onComplete={() => setSurveyDone((d) => ({ ...d, [preSurvey.id]: true }))}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Modules */}
       {course.modules.length === 0 ? (
         <p className="text-ink/60">No modules have been added to this course yet.</p>
       ) : (
         <div className="space-y-6">
           {course.modules.map((module, mi) => {
-            const isUnlocked = mi === 0 || moduleStatuses[mi - 1]
+            const isUnlocked = mi === 0 ? (preSurveyDone || isPrivileged) : moduleStatuses[mi - 1]
             const prevModule = mi > 0 ? course.modules[mi - 1] : null
             const modLessonCount = module.lessons.length
             const modDoneCount = module.lessons.filter((l) => !!progress[l.id]).length
@@ -438,7 +496,12 @@ export default function CourseDetail() {
                 </div>
 
                 {/* Lock hint */}
-                {!isUnlocked && prevModule && (
+                {!isUnlocked && mi === 0 && (
+                  <p className="border-b border-ink/5 bg-teal-tint/50 px-6 py-3 text-sm text-teal/70">
+                    Complete the baseline survey above to begin this module.
+                  </p>
+                )}
+                {!isUnlocked && mi > 0 && prevModule && (
                   <p className="border-b border-ink/5 bg-sand/30 px-6 py-3 text-sm text-ink/50">
                     Finish{' '}
                     <span className="font-medium text-ink/60">{prevModule.title}</span>
@@ -620,6 +683,29 @@ export default function CourseDetail() {
               </section>
             )
           })}
+        </div>
+      )}
+
+      {/* Post-survey gate */}
+      {enrolled && !isPrivileged && postSurvey && !postSurveyDone && allModulesDone && (
+        <div className="mt-6 overflow-hidden rounded-xl border border-orange/20 bg-white">
+          <div className="border-b border-orange/10 bg-orange-tint/40 px-6 py-4">
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-orange">
+              One last step
+            </p>
+            <h2 className="font-display text-xl font-semibold text-navy">
+              {postSurvey.title}
+            </h2>
+            <p className="mt-1 text-sm text-ink/60">
+              Tell us about your experience — it takes about 5 minutes.
+            </p>
+          </div>
+          <div className="px-6 py-5">
+            <SurveyForm
+              surveyId={postSurvey.id}
+              onComplete={() => setSurveyDone((d) => ({ ...d, [postSurvey.id]: true }))}
+            />
+          </div>
         </div>
       )}
     </Layout>
@@ -980,12 +1066,14 @@ function LessonRow({
   const [panelOpen, setPanelOpen] = useState(false)
   const [evidenceInput, setEvidenceInput] = useState('')
   const [evidenceFile, setEvidenceFile] = useState(null)
+  const [evidenceText, setEvidenceText] = useState('')
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
 
   const evidenceReady =
     (ra === 'link' && evidenceInput.trim().startsWith('http')) ||
-    (ra === 'file' && evidenceFile !== null)
+    (ra === 'file' && evidenceFile !== null) ||
+    (ra === 'text' && evidenceText.trim().length >= 20)
 
   function handleMarkDone() {
     if (completed) {
@@ -1007,6 +1095,12 @@ function LessonRow({
       setPanelOpen(false)
       onToggleComplete({ url: evidenceInput.trim(), type: 'link' })
       setEvidenceInput('')
+    } else if (ra === 'text') {
+      const trimmed = evidenceText.trim()
+      if (trimmed.length < 20) { setUploadError('Please write at least 20 characters.'); return }
+      setPanelOpen(false)
+      onToggleComplete({ text: trimmed, type: 'text' })
+      setEvidenceText('')
     } else {
       if (!evidenceFile) { setUploadError('Please select a file.'); return }
       setUploading(true)
@@ -1107,6 +1201,8 @@ function LessonRow({
                     <path d="M9.5 6.5a3.18 3.18 0 00-4.5 0l-2 2a3.18 3.18 0 004.5 4.5l1-1" />
                   </svg>
                 </a>
+              ) : evidence.type === 'text' ? (
+                <TextEvidenceIcon text={evidence.text} />
               ) : (
                 <FileEvidenceIcon url={evidence.url} label={lesson.title} />
               )
@@ -1143,6 +1239,14 @@ function LessonRow({
               onChange={(e) => setEvidenceInput(e.target.value)}
               className="efac-input mb-2.5 text-[13px]"
             />
+          ) : ra === 'text' ? (
+            <textarea
+              rows={4}
+              placeholder="Write your response here (at least 20 characters)…"
+              value={evidenceText}
+              onChange={(e) => setEvidenceText(e.target.value)}
+              className="efac-input mb-2.5 resize-y text-[13px]"
+            />
           ) : (
             <input
               type="file"
@@ -1159,7 +1263,7 @@ function LessonRow({
               {uploading ? 'Uploading…' : 'Submit & mark done'}
             </button>
             <button
-              onClick={() => { setPanelOpen(false); setEvidenceInput(''); setEvidenceFile(null); setUploadError('') }}
+              onClick={() => { setPanelOpen(false); setEvidenceInput(''); setEvidenceFile(null); setEvidenceText(''); setUploadError('') }}
               className="text-[13px] text-muted transition-colors hover:text-ink"
             >
               Cancel
@@ -1207,6 +1311,37 @@ function FileEvidenceIcon({ url, label }) {
         <path d="M9.5 2v3.5H13" />
       </svg>
     </a>
+  )
+}
+
+function TextEvidenceIcon({ text }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <span className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-label={open ? 'Hide written response' : 'View written response'}
+        title={text}
+        className="flex h-5 w-5 items-center justify-center rounded-full bg-teal-tint text-teal transition-colors hover:bg-teal hover:text-white"
+      >
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="h-2.5 w-2.5" aria-hidden="true">
+          <path d="M11.5 2.5l2 2L5 13H3v-2L11.5 2.5z" />
+        </svg>
+      </button>
+      {open && text && (
+        <div className="absolute bottom-full left-0 z-20 mb-1.5 w-64 rounded-xl border border-line bg-card p-3 shadow-md">
+          <p className="text-[12px] leading-relaxed text-ink/80 whitespace-pre-wrap">{text}</p>
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="mt-2 text-[11px] text-muted hover:text-ink"
+          >
+            Close
+          </button>
+        </div>
+      )}
+    </span>
   )
 }
 

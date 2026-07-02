@@ -41,11 +41,11 @@ export function AuthProvider({ children }) {
     return () => listener.subscription.unsubscribe()
   }, [])
 
-  async function signUp({ email, password, fullName }) {
+  async function signUp({ email, password, fullName, efacId }) {
     return supabase.auth.signUp({
       email,
       password,
-      options: { data: { full_name: fullName } },
+      options: { data: { full_name: fullName, efac_id: efacId } },
     })
   }
 
