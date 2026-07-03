@@ -907,6 +907,15 @@ function InstructorHome() {
             Issue certificates to learners who have completed a course.
           </p>
         </Link>
+        <Link
+          to="/admin/jobs"
+          className="rounded-xl border border-ink/10 bg-white p-5 transition-shadow hover:shadow-sm"
+        >
+          <h3 className="font-semibold text-navy">Post a job</h3>
+          <p className="mt-1 text-sm text-ink/60">
+            Add and manage job listings visible to all scholars.
+          </p>
+        </Link>
       </div>
     </div>
   )

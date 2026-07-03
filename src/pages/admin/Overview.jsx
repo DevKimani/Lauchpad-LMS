@@ -8,6 +8,7 @@ import {
   Award,
   Clock,
   BarChart2,
+  Briefcase,
 } from 'lucide-react'
 import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
@@ -243,6 +244,20 @@ export default function AdminOverview() {
             <p className="font-semibold text-navy">Reports</p>
             <p className="mt-0.5 text-sm text-ink/60">
               Survey analysis, submissions, and certificates.
+            </p>
+          </div>
+        </Link>
+        <Link
+          to="/admin/jobs"
+          className="flex items-center gap-4 rounded-xl border border-ink/10 bg-white p-5 transition-shadow hover:shadow-sm"
+        >
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-orange-tint">
+            <Briefcase size={20} strokeWidth={1.75} className="text-orange" />
+          </span>
+          <div>
+            <p className="font-semibold text-navy">Post jobs</p>
+            <p className="mt-0.5 text-sm text-ink/60">
+              Curate job listings for EFAC scholars.
             </p>
           </div>
         </Link>

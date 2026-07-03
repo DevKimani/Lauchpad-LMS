@@ -22,6 +22,17 @@ export default function Layout({ children }) {
             <Link to="/dashboard" className="text-[14px] font-semibold text-ink/70 hover:text-teal">
               Dashboard
             </Link>
+            <Link to="/jobs" className="text-[14px] font-semibold text-ink/70 hover:text-teal">
+              Jobs
+            </Link>
+            {(profile?.role === 'admin' || profile?.role === 'instructor') && (
+              <Link
+                to="/admin/jobs"
+                className="text-[14px] font-semibold text-ink/70 hover:text-teal"
+              >
+                Post jobs
+              </Link>
+            )}
             {(profile?.role === 'admin' || profile?.role === 'instructor') && (
               <Link
                 to="/admin/reports"
