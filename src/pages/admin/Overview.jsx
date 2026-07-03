@@ -7,6 +7,7 @@ import {
   UserCheck,
   Award,
   Clock,
+  BarChart2,
 } from 'lucide-react'
 import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
@@ -202,7 +203,7 @@ export default function AdminOverview() {
       )}
 
       {/* ── Quick nav cards ───────────────────────────────────────────────────── */}
-      <div className="mt-8 grid gap-4 sm:grid-cols-2">
+      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Link
           to="/admin/users"
           className="flex items-center gap-4 rounded-xl border border-ink/10 bg-white p-5 transition-shadow hover:shadow-sm"
@@ -221,13 +222,27 @@ export default function AdminOverview() {
           to="/admin/courses"
           className="flex items-center gap-4 rounded-xl border border-ink/10 bg-white p-5 transition-shadow hover:shadow-sm"
         >
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-orange-light">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-orange-tint">
             <BookOpen size={20} strokeWidth={1.75} className="text-orange" />
           </span>
           <div>
             <p className="font-semibold text-navy">All courses</p>
             <p className="mt-0.5 text-sm text-ink/60">
               Browse, review, and oversee every course.
+            </p>
+          </div>
+        </Link>
+        <Link
+          to="/admin/reports"
+          className="flex items-center gap-4 rounded-xl border border-ink/10 bg-white p-5 transition-shadow hover:shadow-sm"
+        >
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-teal-tint">
+            <BarChart2 size={20} strokeWidth={1.75} className="text-teal" />
+          </span>
+          <div>
+            <p className="font-semibold text-navy">Reports</p>
+            <p className="mt-0.5 text-sm text-ink/60">
+              Survey analysis, submissions, and certificates.
             </p>
           </div>
         </Link>

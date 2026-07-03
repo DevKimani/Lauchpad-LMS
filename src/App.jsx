@@ -23,6 +23,10 @@ import Certificate from './pages/Certificate'
 import AdminOverview from './pages/admin/Overview'
 import AdminUsers from './pages/admin/Users'
 import AdminCourses from './pages/admin/Courses'
+import AdminReports from './pages/admin/Reports'
+import SurveyReport from './pages/admin/SurveyReport'
+import SubmissionsReport from './pages/admin/SubmissionsReport'
+import ProgressReport from './pages/admin/ProgressReport'
 import ProtectedRoute from './components/ProtectedRoute'
 
 export default function App() {
@@ -190,6 +194,38 @@ export default function App() {
         element={
           <ProtectedRoute roles={['admin']}>
             <AdminCourses />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/reports"
+        element={
+          <ProtectedRoute roles={['admin', 'instructor']}>
+            <AdminReports />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/reports/surveys"
+        element={
+          <ProtectedRoute roles={['admin', 'instructor']}>
+            <SurveyReport />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/reports/submissions"
+        element={
+          <ProtectedRoute roles={['admin', 'instructor']}>
+            <SubmissionsReport />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/reports/progress"
+        element={
+          <ProtectedRoute roles={['admin', 'instructor']}>
+            <ProgressReport />
           </ProtectedRoute>
         }
       />

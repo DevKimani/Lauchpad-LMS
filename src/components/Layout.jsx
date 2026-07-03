@@ -22,6 +22,22 @@ export default function Layout({ children }) {
             <Link to="/dashboard" className="text-[14px] font-semibold text-ink/70 hover:text-teal">
               Dashboard
             </Link>
+            {(profile?.role === 'admin' || profile?.role === 'instructor') && (
+              <Link
+                to="/admin/reports"
+                className="text-[14px] font-semibold text-ink/70 hover:text-teal"
+              >
+                Reports
+              </Link>
+            )}
+            {profile?.role === 'admin' && (
+              <Link
+                to="/admin"
+                className="text-[14px] font-semibold text-ink/70 hover:text-teal"
+              >
+                Admin
+              </Link>
+            )}
             {profile && (
               <span className="rounded-full bg-orange-tint px-3 py-1 text-xs font-semibold text-ink capitalize">
                 {profile.role}
