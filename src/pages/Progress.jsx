@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import NotificationBell from '../components/NotificationBell'
+import TopNav from '../components/TopNav'
 import { supabase } from '../lib/supabase'
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -10,9 +10,8 @@ import { supabase } from '../lib/supabase'
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export default function Progress() {
-  const { session, profile, signOut } = useAuth()
+  const { session } = useAuth()
   const userId = session?.user?.id
-  const navigate = useNavigate()
 
   const [loading, setLoading] = useState(true)
   const [enrollments, setEnrollments] = useState([])
@@ -113,20 +112,6 @@ export default function Progress() {
   // Only show heatmap when at least one lesson_progress row has a real completed_at
   const hasDateActivity = lessonProgress.some((l) => l.completed && l.completed_at)
 
-  const initials = profile?.full_name
-    ? profile.full_name
-        .split(' ')
-        .slice(0, 2)
-        .map((w) => w[0])
-        .join('')
-        .toUpperCase()
-    : '?'
-
-  async function handleSignOut() {
-    await signOut()
-    navigate('/login')
-  }
-
   // ── Loading ──────────────────────────────────────────────────────────────────
   if (loading) {
     return (
@@ -141,52 +126,7 @@ export default function Progress() {
     <div className="min-h-screen bg-paper">
 
       {/* ── TOP NAV ─────────────────────────────────────────────────────── */}
-      <header className="border-b border-line bg-card">
-        <div className="mx-auto flex max-w-[960px] items-center justify-between gap-4 px-6 py-3">
-
-          <div className="flex shrink-0 items-center gap-3">
-            <Link to="/dashboard">
-              <img src="/efac-logo.svg" alt="EFAC" className="h-8" />
-            </Link>
-            <span className="h-5 w-px bg-line" aria-hidden="true" />
-            <span className="text-[14px] font-extrabold text-ink">Learn</span>
-          </div>
-
-          <nav className="hidden items-center gap-0.5 md:flex" aria-label="Main navigation">
-            {[
-              { label: 'Home',     to: '/dashboard', active: false },
-              { label: 'Courses',  to: '/courses',   active: false },
-              { label: 'Library',  to: '/courses',   active: false },
-              { label: 'Progress', to: '/progress',  active: true  },
-            ].map(({ label, to, active }) => (
-              <Link
-                key={label}
-                to={to}
-                aria-current={active ? 'page' : undefined}
-                className={
-                  active
-                    ? 'border-b-2 border-orange px-3 pb-[5px] pt-[7px] text-[14px] font-extrabold text-ink'
-                    : 'rounded-[8px] px-3 py-[7px] text-[14px] font-semibold text-muted transition-colors hover:text-ink'
-                }
-              >
-                {label}
-              </Link>
-            ))}
-          </nav>
-
-          <div className="flex shrink-0 items-center gap-3">
-            <NotificationBell />
-            <button
-              onClick={handleSignOut}
-              className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-orange text-[13px] font-extrabold text-ink transition-opacity hover:opacity-85"
-              aria-label="Sign out"
-              title="Sign out"
-            >
-              {initials}
-            </button>
-          </div>
-        </div>
-      </header>
+      <TopNav />
 
       {/* ── CONTENT ─────────────────────────────────────────────────────── */}
       <main className="mx-auto max-w-[960px] px-6 py-8">

@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react'
 import { Bookmark, BookmarkCheck } from 'lucide-react'
-import Layout from '../components/Layout'
+import TopNav from '../components/TopNav'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -233,7 +233,9 @@ export default function Jobs() {
   // ── render ────────────────────────────────────────────────────────────────
 
   return (
-    <Layout>
+    <div className="min-h-screen bg-paper">
+      <TopNav />
+      <main className="mx-auto max-w-[960px] px-6 py-8">
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="mb-8">
         <p className="efac-eyebrow text-orange">Opportunities</p>
@@ -398,6 +400,7 @@ export default function Jobs() {
           )}
         </div>
       )}
-    </Layout>
+      </main>
+    </div>
   )
 }

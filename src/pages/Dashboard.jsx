@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Users, BookOpen, BarChart2 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import Layout from '../components/Layout'
+import TopNav from '../components/TopNav'
 import NotificationBell from '../components/NotificationBell'
 import { supabase } from '../lib/supabase'
 import { getFileUrl } from '../lib/files'
@@ -227,7 +228,7 @@ function LearnerHome() {
   if (enrollments.length === 0) {
     return (
       <div className="min-h-screen bg-paper">
-        <LearnerNav />
+        <TopNav />
         <main className="mx-auto max-w-[960px] px-6 py-8">
           <div className="space-y-6">
 
@@ -300,7 +301,7 @@ function LearnerHome() {
     <div className="min-h-screen bg-paper">
 
       {/* ── 1. TOP NAV — full-width bar, inner content centred at 960 px ── */}
-      <LearnerNav />
+      <TopNav />
 
       {/* ── BODY ────────────────────────────────────────────────────────── */}
       <main className="mx-auto max-w-[960px] px-6 py-8">
@@ -444,130 +445,6 @@ function LearnerHome() {
         </div>
       </main>
     </div>
-  )
-}
-
-// ── LearnerNav ────────────────────────────────────────────────────────────────
-
-function LearnerNav() {
-  const { profile, signOut } = useAuth()
-  const navigate = useNavigate()
-  const [avatarOpen, setAvatarOpen] = useState(false)
-  const avatarRef = useRef(null)
-
-  const initials = profile?.full_name
-    ? profile.full_name
-        .split(' ')
-        .slice(0, 2)
-        .map((w) => w[0])
-        .join('')
-        .toUpperCase()
-    : '?'
-
-  // Close on outside click
-  useEffect(() => {
-    if (!avatarOpen) return
-    function handler(e) {
-      if (avatarRef.current?.contains(e.target)) return
-      setAvatarOpen(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [avatarOpen])
-
-  async function handleSignOut() {
-    setAvatarOpen(false)
-    await signOut()
-    navigate('/login')
-  }
-
-  return (
-    <header className="border-b border-line bg-card">
-      <div className="mx-auto flex max-w-[960px] items-center justify-between gap-4 px-6 py-3">
-
-        {/* Left: logo + divider + "Learn" */}
-        <div className="flex shrink-0 items-center gap-3">
-          <Link to="/dashboard">
-            <img src="/efac-logo.svg" alt="EFAC" className="h-8" />
-          </Link>
-          <span className="h-5 w-px bg-line" aria-hidden="true" />
-          <span className="text-[14px] font-extrabold text-ink">Learn</span>
-        </div>
-
-        {/* Centre: navigation links */}
-        <nav className="hidden items-center gap-0.5 md:flex" aria-label="Main navigation">
-          {[
-            { label: 'Home',     to: '/dashboard',   active: true  },
-            { label: 'Courses',  to: '/courses',     active: false },
-            { label: 'Library',  to: '/courses',     active: false },
-            { label: 'Progress', to: '/progress',    active: false },
-          ].map(({ label, to, active }) => (
-            <Link
-              key={label}
-              to={to}
-              aria-current={active ? 'page' : undefined}
-              className={
-                active
-                  ? 'border-b-2 border-orange px-3 pb-[5px] pt-[7px] text-[14px] font-extrabold text-ink'
-                  : 'rounded-[8px] px-3 py-[7px] text-[14px] font-semibold text-muted transition-colors hover:text-ink'
-              }
-            >
-              {label}
-            </Link>
-          ))}
-        </nav>
-
-        {/* Right: search pill + notification bell + avatar */}
-        <div className="flex shrink-0 items-center gap-3">
-
-          {/* Search pill */}
-          <Link
-            to="/courses"
-            className="hidden items-center gap-2 rounded-full border border-line bg-paper px-4 py-2 text-[13px] text-muted transition-colors hover:border-orange/40 sm:flex"
-            aria-label="Search courses"
-          >
-            <svg className="h-4 w-4 shrink-0" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.75" />
-              <path d="M11 11l2.5 2.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
-            </svg>
-            <span>Search…</span>
-          </Link>
-
-          <NotificationBell />
-
-          {/* 34 px avatar + dropdown */}
-          <div className="relative" ref={avatarRef}>
-            <button
-              onClick={() => setAvatarOpen((o) => !o)}
-              className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-orange text-[13px] font-extrabold text-ink transition-opacity hover:opacity-85"
-              aria-label="Account menu"
-              aria-expanded={avatarOpen}
-            >
-              {initials}
-            </button>
-
-            {avatarOpen && (
-              <div className="absolute right-0 top-full z-50 mt-2 w-48 overflow-hidden rounded-[14px] border border-line bg-card shadow-frame">
-                <div className="border-b border-line px-4 py-3">
-                  <p className="text-[14px] font-semibold leading-tight text-ink">
-                    {profile?.full_name}
-                  </p>
-                  <p className="mt-0.5 text-[12px] capitalize text-muted">
-                    {profile?.role}
-                  </p>
-                </div>
-                <button
-                  onClick={handleSignOut}
-                  className="w-full px-4 py-2.5 text-left text-[14px] font-semibold text-ink transition-colors hover:bg-paper"
-                >
-                  Sign out
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </header>
   )
 }
 
