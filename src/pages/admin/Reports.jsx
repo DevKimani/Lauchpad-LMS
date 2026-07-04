@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { BarChart2, FileText, Award, TrendingUp, ArrowRight } from 'lucide-react'
+import { BarChart2, FileText, Award, TrendingUp, MousePointerClick, ArrowRight } from 'lucide-react'
 import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 
@@ -9,17 +9,19 @@ export default function AdminReports() {
 
   useEffect(() => {
     async function load() {
-      const [surveyRes, subRes, certRes, enrollRes] = await Promise.all([
+      const [surveyRes, subRes, certRes, enrollRes, clicksRes] = await Promise.all([
         supabase.from('survey_responses').select('id', { count: 'exact', head: true }),
         supabase.from('submissions').select('id', { count: 'exact', head: true }),
         supabase.from('certificates').select('id', { count: 'exact', head: true }),
         supabase.from('enrollments').select('id', { count: 'exact', head: true }),
+        supabase.from('job_clicks').select('id', { count: 'exact', head: true }),
       ])
       setStats({
         surveys: surveyRes.count ?? 0,
         submissions: subRes.count ?? 0,
         certificates: certRes.count ?? 0,
         enrollments: enrollRes.count ?? 0,
+        jobClicks: clicksRes.count ?? 0,
       })
     }
     load()
@@ -151,6 +153,35 @@ export default function AdminReports() {
           <p className="mt-4 text-[13px] font-semibold text-ink/45">
             {stats
               ? `${stats.certificates} issued`
+              : <span className="animate-pulse">Loading…</span>}
+          </p>
+        </Link>
+
+        {/* Jobs Report */}
+        <Link
+          to="/admin/reports/jobs"
+          className="efac-card group flex flex-col p-6 transition-shadow hover:shadow-md"
+        >
+          <div className="mb-4 flex items-center justify-between">
+            <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-tint">
+              <MousePointerClick size={20} strokeWidth={1.75} className="text-orange" />
+            </span>
+            <ArrowRight
+              size={16}
+              className="text-ink/25 transition-transform group-hover:translate-x-0.5"
+              aria-hidden="true"
+            />
+          </div>
+          <p className="efac-eyebrow text-orange">Career engagement</p>
+          <p className="mt-1 font-display text-xl font-semibold text-navy">
+            Jobs Report
+          </p>
+          <p className="mt-1 text-sm text-ink/60">
+            Apply-click counts, unique scholars, and who engaged with each listing.
+          </p>
+          <p className="mt-4 text-[13px] font-semibold text-ink/45">
+            {stats
+              ? `Apply clicks: ${stats.jobClicks}`
               : <span className="animate-pulse">Loading…</span>}
           </p>
         </Link>

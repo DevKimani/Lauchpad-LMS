@@ -29,6 +29,7 @@ import SubmissionsReport from './pages/admin/SubmissionsReport'
 import ProgressReport from './pages/admin/ProgressReport'
 import Jobs from './pages/Jobs'
 import ManageJobs from './pages/admin/ManageJobs'
+import JobsReport from './pages/admin/JobsReport'
 import ProtectedRoute from './components/ProtectedRoute'
 
 export default function App() {
@@ -244,6 +245,14 @@ export default function App() {
         element={
           <ProtectedRoute roles={['admin', 'instructor']}>
             <ManageJobs />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/reports/jobs"
+        element={
+          <ProtectedRoute roles={['admin', 'instructor']}>
+            <JobsReport />
           </ProtectedRoute>
         }
       />

@@ -44,7 +44,7 @@ function DeadlinePill({ deadline }) {
 
 // ── job card ──────────────────────────────────────────────────────────────────
 
-function JobCard({ job, isSaved, isSaving, onToggleSave, dimmed }) {
+function JobCard({ job, isSaved, isSaving, onToggleSave, onApply, dimmed }) {
   return (
     <article
       className={`efac-card p-6 transition-all hover:shadow-sm ${
@@ -114,14 +114,13 @@ function JobCard({ job, isSaved, isSaving, onToggleSave, dimmed }) {
           </span>
         )}
         {job.apply_url && (
-          <a
-            href={job.apply_url}
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            type="button"
+            onClick={onApply}
             className="efac-btn efac-btn-sm ml-auto"
           >
             Apply →
-          </a>
+          </button>
         )}
       </div>
     </article>
@@ -190,6 +189,17 @@ export default function Jobs() {
       setSavedIds((prev) => new Set([...prev, jobId]))
     }
     setSavingId(null)
+  }
+
+  // ── apply click tracking ──────────────────────────────────────────────────
+
+  function handleApply(jobId, applyUrl) {
+    // Insert and navigate concurrently — tracking must never block the link.
+    supabase
+      .from('job_clicks')
+      .insert({ job_id: jobId, learner_id: userId })
+      .catch(() => {})
+    window.open(applyUrl, '_blank', 'noopener,noreferrer')
   }
 
   // ── derived: filter options ───────────────────────────────────────────────
@@ -372,6 +382,7 @@ export default function Jobs() {
               isSaved={savedIds.has(job.id)}
               isSaving={savingId === job.id}
               onToggleSave={() => toggleSave(job.id)}
+              onApply={() => handleApply(job.id, job.apply_url)}
               dimmed={false}
             />
           ))}
@@ -393,6 +404,7 @@ export default function Jobs() {
                   isSaved={savedIds.has(job.id)}
                   isSaving={savingId === job.id}
                   onToggleSave={() => toggleSave(job.id)}
+                  onApply={() => handleApply(job.id, job.apply_url)}
                   dimmed
                 />
               ))}
