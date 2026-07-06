@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import Layout from '../components/Layout'
+import Avatar from '../components/Avatar'
 import { supabase } from '../lib/supabase'
 import { getFileUrl } from '../lib/files'
 
@@ -72,7 +73,7 @@ export default function Roster() {
 
       // 3. Fetch profiles, progress, and reflections in parallel
       const [profilesRes, progressRes, reflRes] = await Promise.all([
-        supabase.from('profiles').select('id, full_name, efac_id').in('id', learnerIds),
+        supabase.from('profiles').select('id, full_name, efac_id, avatar_url').in('id', learnerIds),
         allLessonIds.length > 0
           ? supabase
               .from('lesson_progress')
@@ -116,6 +117,7 @@ export default function Roster() {
             id: learnerId,
             name: profile?.full_name || 'Unnamed learner',
             efacId: profile?.efac_id ?? '',
+            avatarUrl: profile?.avatar_url ?? null,
             completed,
             pct,
           }
@@ -245,7 +247,10 @@ export default function Roster() {
                 key={learner.id}
                 className="grid grid-cols-[1fr_2fr_4rem] items-center gap-4 px-5 py-4 sm:grid-cols-[1fr_7rem_2fr_4rem]"
               >
-                <p className="truncate text-sm font-medium text-ink">{learner.name}</p>
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <Avatar url={learner.avatarUrl} name={learner.name} className="h-7 w-7 shrink-0 text-[10px] font-extrabold" />
+                  <p className="truncate text-sm font-medium text-ink">{learner.name}</p>
+                </div>
 
                 <p className="hidden truncate font-mono text-xs text-ink/40 sm:block">
                   {learner.efacId || '—'}
@@ -346,9 +351,10 @@ export default function Roster() {
                             const learnerEv = evidenceByLearner[learner.id] ?? {}
                             return (
                               <li key={learner.id} className={`grid ${cols} items-start gap-4 px-5 py-4`}>
-                                <p className="truncate text-sm font-medium text-ink">
-                                  {learner.name}
-                                </p>
+                                <div className="flex min-w-0 items-center gap-2">
+                                  <Avatar url={learner.avatarUrl} name={learner.name} className="h-6 w-6 shrink-0 text-[9px] font-extrabold" />
+                                  <p className="truncate text-sm font-medium text-ink">{learner.name}</p>
+                                </div>
                                 <p className={`text-sm leading-relaxed ${text && text.trim() ? 'text-ink/80' : 'italic text-ink/30'}`}>
                                   {(text && text.trim()) || 'No reflection yet'}
                                 </p>
@@ -422,6 +428,7 @@ export default function Roster() {
                       return (
                         <li key={learner.id}>
                           <div className="flex items-center gap-3 px-5 py-3">
+                            <Avatar url={learner.avatarUrl} name={learner.name} className="h-7 w-7 shrink-0 text-[10px] font-extrabold" />
                             <p className="flex-1 truncate text-sm font-medium text-ink">
                               {learner.name}
                             </p>

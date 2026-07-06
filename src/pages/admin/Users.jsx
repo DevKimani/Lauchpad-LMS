@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Search, Check, AlertCircle, Users } from 'lucide-react'
 import Layout from '../../components/Layout'
+import Avatar from '../../components/Avatar'
 import { supabase } from '../../lib/supabase'
 
 const ROLES = ['learner', 'instructor', 'admin']
@@ -26,7 +27,7 @@ export default function AdminUsers() {
   useEffect(() => {
     supabase
       .from('profiles')
-      .select('id, full_name, efac_id, role, created_at')
+      .select('id, full_name, efac_id, role, created_at, avatar_url')
       .order('full_name', { ascending: true })
       .then(({ data }) => {
         setProfiles(data ?? [])
@@ -196,11 +197,18 @@ export default function AdminUsers() {
                 return (
                   <tr key={profile.id}>
                     <td className="px-5 py-3.5">
-                      <p className="font-medium text-ink">
-                        {profile.full_name || (
-                          <span className="italic text-ink/30">No name</span>
-                        )}
-                      </p>
+                      <div className="flex items-center gap-2.5">
+                        <Avatar
+                          url={profile.avatar_url}
+                          name={profile.full_name}
+                          className="h-8 w-8 shrink-0 text-xs font-extrabold"
+                        />
+                        <p className="font-medium text-ink">
+                          {profile.full_name || (
+                            <span className="italic text-ink/30">No name</span>
+                          )}
+                        </p>
+                      </div>
                     </td>
 
                     {/* EFAC ID — editable */}

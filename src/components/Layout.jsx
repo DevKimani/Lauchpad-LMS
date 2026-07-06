@@ -55,6 +55,9 @@ export default function Layout({ children }) {
               </span>
             )}
             {profile && <NotificationBell />}
+            <Link to="/profile" className="text-[14px] font-semibold text-ink/70 hover:text-teal">
+              My profile
+            </Link>
             <button
               onClick={handleSignOut}
               className="text-[14px] font-semibold text-ink/70 hover:text-red"

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import Layout from '../components/Layout'
+import Avatar from '../components/Avatar'
 import FileLink from '../components/FileLink'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -40,7 +41,7 @@ export default function FeedbackInbox() {
             courses ( id, title, instructor_id )
           )
         ),
-        profiles ( full_name )
+        profiles ( full_name, avatar_url )
       `)
       .in('status', ['submitted', 'reviewed'])
       .order('submitted_at', { ascending: false })
@@ -262,10 +263,14 @@ export default function FeedbackInbox() {
                         : ''}
                     </span>
                   </div>
-                  <p className="mt-0.5 text-xs text-ink/50">
-                    Learner:{' '}
-                    <span className="font-medium text-ink/70">{learnerName}</span>
-                  </p>
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <Avatar
+                      url={item.profiles?.avatar_url}
+                      name={learnerName}
+                      className="h-6 w-6 shrink-0 text-[9px] font-extrabold"
+                    />
+                    <span className="text-xs font-medium text-ink/70">{learnerName}</span>
+                  </div>
                 </div>
 
                 {/* Submitted content */}

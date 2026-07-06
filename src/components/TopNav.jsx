@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import Avatar from './Avatar'
 import NotificationBell from './NotificationBell'
 
 // Learner-facing top navigation bar.
@@ -122,11 +123,15 @@ export default function TopNav() {
             <button
               type="button"
               onClick={() => setDropOpen((o) => !o)}
-              className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-orange text-[13px] font-extrabold text-ink transition-opacity hover:opacity-85"
+              className="shrink-0 overflow-hidden rounded-full transition-opacity hover:opacity-85 focus:outline-none"
               aria-label="Account menu"
               aria-expanded={dropOpen}
             >
-              {initials}
+              <Avatar
+                url={profile?.avatar_url}
+                name={profile?.full_name}
+                className="h-[34px] w-[34px] text-[13px] font-extrabold"
+              />
             </button>
 
             {dropOpen && (
@@ -139,6 +144,13 @@ export default function TopNav() {
                     {profile?.role}
                   </p>
                 </div>
+                <Link
+                  to="/profile"
+                  onClick={() => setDropOpen(false)}
+                  className="block px-4 py-2.5 text-[14px] font-semibold text-ink transition-colors hover:bg-paper"
+                >
+                  My profile
+                </Link>
                 <button
                   type="button"
                   onClick={handleSignOut}

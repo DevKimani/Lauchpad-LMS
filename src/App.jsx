@@ -30,6 +30,7 @@ import ProgressReport from './pages/admin/ProgressReport'
 import Jobs from './pages/Jobs'
 import ManageJobs from './pages/admin/ManageJobs'
 import JobsReport from './pages/admin/JobsReport'
+import Profile from './pages/Profile'
 import ProtectedRoute from './components/ProtectedRoute'
 
 export default function App() {
@@ -45,6 +46,14 @@ export default function App() {
         element={
           <ProtectedRoute>
             <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/profile"
+        element={
+          <ProtectedRoute>
+            <Profile />
           </ProtectedRoute>
         }
       />
