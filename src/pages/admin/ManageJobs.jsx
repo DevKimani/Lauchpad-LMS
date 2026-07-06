@@ -462,7 +462,7 @@ export default function ManageJobs() {
       apply_url: form.apply_url.trim() || null,
       source: form.source.trim() || null,
       deadline: form.deadline || null,
-      published: form.published,
+      is_published: form.published,
     }
 
     if (editJob) {
@@ -483,7 +483,7 @@ export default function ManageJobs() {
 
   async function togglePublish(job) {
     setToggling(job.id)
-    await supabase.from('jobs').update({ published: !job.published }).eq('id', job.id)
+    await supabase.from('jobs').update({ is_published: !job.published }).eq('id', job.id)
     setJobs((prev) =>
       prev.map((j) => (j.id === job.id ? { ...j, published: !j.published } : j)),
     )
