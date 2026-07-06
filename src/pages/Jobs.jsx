@@ -58,8 +58,8 @@ function JobCard({ job, isSaved, isSaving, onToggleSave, onApply, dimmed }) {
             <h2 className="font-display text-[1.1rem] font-semibold leading-snug text-navy">
               {job.title}
             </h2>
-            {job.job_type && (
-              <span className="efac-tag shrink-0">{job.job_type}</span>
+            {jobTypeLabel(job.job_type) && (
+              <span className="efac-tag shrink-0">{jobTypeLabel(job.job_type)}</span>
             )}
             {job.category && (
               <span className="shrink-0 rounded-[7px] border border-line bg-sand px-2 py-[2px] text-[10px] font-extrabold uppercase tracking-wide text-muted">
@@ -129,9 +129,29 @@ function JobCard({ job, isSaved, isSaving, onToggleSave, onApply, dimmed }) {
 
 // ── main page ─────────────────────────────────────────────────────────────────
 
-const TYPE_ORDER = [
-  'Full-time', 'Part-time', 'Internship', 'Attachment', 'Volunteer', 'Gig',
+const JOB_TYPE_PAIRS = [
+  { value: 'full_time',  label: 'Full-time'  },
+  { value: 'part_time',  label: 'Part-time'  },
+  { value: 'internship', label: 'Internship' },
+  { value: 'attachment', label: 'Attachment' },
+  { value: 'volunteer',  label: 'Volunteer'  },
+  { value: 'gig',        label: 'Gig'        },
 ]
+const JOB_TYPE_LABEL = Object.fromEntries(JOB_TYPE_PAIRS.map(({ value, label }) => [value, label]))
+const TYPE_ORDER = JOB_TYPE_PAIRS.map((t) => t.value)
+
+// Normalise stored value ("Full-time", "full_time", "Part-time", etc.) → machine value.
+// Returns the original string unchanged when unrecognised.
+function normalizeJobType(raw) {
+  if (!raw) return ''
+  const n = raw.toLowerCase().replace(/[\s-]/g, '_')
+  return n in JOB_TYPE_LABEL ? n : raw
+}
+
+// Display label for a job type, or null when unknown/missing — never hides the job.
+function jobTypeLabel(raw) {
+  return JOB_TYPE_LABEL[normalizeJobType(raw)] ?? null
+}
 
 export default function Jobs() {
   const { session } = useAuth()
@@ -205,9 +225,9 @@ export default function Jobs() {
   // ── derived: filter options ───────────────────────────────────────────────
 
   const jobTypes = useMemo(() => {
-    const present = new Set(jobs.map((j) => j.job_type).filter(Boolean))
-    return TYPE_ORDER.filter((t) => present.has(t)).concat(
-      [...present].filter((t) => !TYPE_ORDER.includes(t)).sort(),
+    const presentNorm = new Set(jobs.map((j) => normalizeJobType(j.job_type)).filter(Boolean))
+    return TYPE_ORDER.filter((v) => presentNorm.has(v)).concat(
+      [...presentNorm].filter((v) => !TYPE_ORDER.includes(v)).sort(),
     )
   }, [jobs])
 
@@ -221,7 +241,7 @@ export default function Jobs() {
   const { activeJobs, pastJobs } = useMemo(() => {
     let list = jobs
     if (tab === 'saved') list = list.filter((j) => savedIds.has(j.id))
-    if (filterType !== 'all') list = list.filter((j) => j.job_type === filterType)
+    if (filterType !== 'all') list = list.filter((j) => normalizeJobType(j.job_type) === filterType)
     if (filterCategory !== 'all') list = list.filter((j) => j.category === filterCategory)
 
     const now = new Date()
@@ -314,7 +334,7 @@ export default function Jobs() {
               onClick={() => setFilterType(filterType === t ? 'all' : t)}
               className={`efac-chip ${filterType === t ? 'efac-chip-on' : ''}`}
             >
-              {t}
+              {JOB_TYPE_LABEL[t] ?? t}
             </button>
           ))}
 

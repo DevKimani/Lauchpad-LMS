@@ -17,8 +17,24 @@ import { useAuth } from '../../contexts/AuthContext'
 // ── constants ─────────────────────────────────────────────────────────────────
 
 const JOB_TYPES = [
-  'Full-time', 'Part-time', 'Internship', 'Attachment', 'Volunteer', 'Gig',
+  { value: 'full_time',  label: 'Full-time'  },
+  { value: 'part_time',  label: 'Part-time'  },
+  { value: 'internship', label: 'Internship' },
+  { value: 'attachment', label: 'Attachment' },
+  { value: 'volunteer',  label: 'Volunteer'  },
+  { value: 'gig',        label: 'Gig'        },
 ]
+
+function normalizeJobType(raw) {
+  if (!raw) return ''
+  const n = raw.toLowerCase().replace(/[\s-]/g, '_')
+  return JOB_TYPES.some((t) => t.value === n) ? n : raw
+}
+
+function jobTypeLabel(raw) {
+  const n = normalizeJobType(raw)
+  return JOB_TYPES.find((t) => t.value === n)?.label ?? raw
+}
 
 const EMPTY_FORM = {
   title: '',
@@ -157,8 +173,8 @@ function FormPanel({ editJob, form, errors, saving, setField, onSave, onCancel }
                 className="efac-input"
               >
                 <option value="">— Select type —</option>
-                {JOB_TYPES.map((t) => (
-                  <option key={t} value={t}>{t}</option>
+                {JOB_TYPES.map(({ value, label }) => (
+                  <option key={value} value={value}>{label}</option>
                 ))}
               </select>
             </div>
@@ -294,7 +310,7 @@ function JobRow({ job, toggling, deleting, onEdit, onToggle, onDelete }) {
               {job.title}
             </p>
             {job.job_type && (
-              <span className="efac-tag">{job.job_type}</span>
+              <span className="efac-tag">{jobTypeLabel(job.job_type)}</span>
             )}
             {job.published ? (
               <span className="rounded-full bg-teal-tint px-2 py-[2px] text-[10px] font-extrabold uppercase tracking-wide text-teal">
@@ -427,7 +443,7 @@ export default function ManageJobs() {
       title: job.title ?? '',
       organisation: job.organisation ?? '',
       location: job.location ?? '',
-      job_type: job.job_type ?? '',
+      job_type: normalizeJobType(job.job_type ?? ''),
       category: job.category ?? '',
       description: job.description ?? '',
       apply_url: job.apply_url ?? '',
