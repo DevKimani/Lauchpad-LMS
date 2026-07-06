@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { Bell } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -8,6 +8,7 @@ export default function NotificationBell() {
   const { session } = useAuth()
   const userId = session?.user?.id
   const navigate = useNavigate()
+  const location = useLocation()
 
   const [notifications, setNotifications] = useState([])
   const [open, setOpen] = useState(false)
@@ -69,23 +70,27 @@ export default function NotificationBell() {
 
   // ── Actions ─────────────────────────────────────────────────────────────────
   function handleClick(notif) {
-    setOpen(false)
+    // 1. Mark read (optimistic + fire-and-forget DB write)
     if (!notif.read) {
-      // Optimistic — fire-and-forget DB write
       setNotifications((prev) =>
         prev.map((n) => (n.id === notif.id ? { ...n, read: true } : n)),
       )
-      supabase
-        .from('notifications')
-        .update({ read: true })
-        .eq('id', notif.id)
+      supabase.from('notifications').update({ read: true }).eq('id', notif.id)
     }
-    if (!notif.link) return
-    if (notif.link.startsWith('http')) {
-      window.open(notif.link, '_blank', 'noreferrer')
-    } else {
-      navigate(notif.link)
+
+    // 2. Close panel
+    setOpen(false)
+
+    // 3. Navigate — guard against missing link
+    const link = notif.link
+    if (!link) return
+    if (link.startsWith('http')) {
+      window.open(link, '_blank', 'noreferrer')
+      return
     }
+    // replace:true when already on the same route so navigate() still fires
+    // (otherwise RR6 treats it as a no-op and data never refreshes)
+    navigate(link, { replace: location.pathname === link })
   }
 
   async function markAllRead() {
@@ -154,6 +159,7 @@ export default function NotificationBell() {
               {notifications.map((notif) => (
                 <li key={notif.id}>
                   <button
+                    onMouseDown={(e) => e.stopPropagation()}
                     onClick={() => handleClick(notif)}
                     className={`w-full px-4 py-3.5 text-left transition-colors hover:bg-sand ${
                       notif.read ? 'bg-white' : 'bg-orange-light/50'
