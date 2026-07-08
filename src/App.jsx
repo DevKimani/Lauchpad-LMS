@@ -31,6 +31,7 @@ import Jobs from './pages/Jobs'
 import ManageJobs from './pages/admin/ManageJobs'
 import JobsReport from './pages/admin/JobsReport'
 import Profile from './pages/Profile'
+import SetPassword from './pages/SetPassword'
 import ProtectedRoute from './components/ProtectedRoute'
 
 export default function App() {
@@ -41,6 +42,7 @@ export default function App() {
       <Route path="/signup" element={<Signup />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/set-password" element={<SetPassword />} />
       <Route
         path="/dashboard"
         element={
