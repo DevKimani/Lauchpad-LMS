@@ -1,46 +1,44 @@
-// Follow this setup guide to integrate the Deno language server with your editor:
-// https://deno.land/manual/getting_started/setup_your_environment
-// This enables autocomplete, go to definition, etc.
+import { createClient } from 'jsr:@supabase/supabase-js@2'
 
-// Setup type definitions for built-in Supabase Runtime APIs
-import "@supabase/functions-js/edge-runtime.d.ts";
-import { withSupabase } from "@supabase/server";
+Deno.serve(async (req) => {
+  const cors = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  }
+  const json = { ...cors, 'Content-Type': 'application/json' }
 
-console.log("Hello from Functions!");
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
 
-// This endpoint uses 'publishable' | 'secret' access, apiKey is required.
-// Use publishable for Client-facing, key-validated endpoints
-// Use secret for Server-to-server, internal calls
-export default {
-  fetch: withSupabase({ auth: ["publishable", "secret"] }, async (req, ctx) => {
-    // Called by another service with a secret key
-    // ctx.supabaseAdmin bypasses RLS — use for privileged operations
-    /*
-    if (ctx.authMode === "secret") {
-      const { user_id } = await req.json();
-      const { data } = await ctx.supabaseAdmin.auth.admin.getUserById(user_id);
+  try {
+    // Admin client (service role) — server-side only
+    const admin = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+    )
 
-      return Response.json({
-        email: data?.user?.email,
-      });
-    }
-    */
+    // Verify the CALLER is an admin
+    const authHeader = req.headers.get('Authorization') ?? ''
+    const jwt = authHeader.replace('Bearer ', '')
+    const { data: { user } } = await admin.auth.getUser(jwt)
+    if (!user)
+      return new Response(JSON.stringify({ error: 'Not authenticated' }), { status: 401, headers: json })
 
-    const { name } = await req.json();
+    const { data: profile } = await admin.from('profiles').select('role').eq('id', user.id).single()
+    if (profile?.role !== 'admin')
+      return new Response(JSON.stringify({ error: 'Admins only' }), { status: 403, headers: json })
 
-    return Response.json({
-      message: `Hello ${name}!`,
-    });
-  }),
-};
+    const { email, role, full_name } = await req.json()
+    if (!email || !['instructor', 'admin'].includes(role))
+      return new Response(JSON.stringify({ error: 'Provide email and role (instructor|admin)' }), { status: 400, headers: json })
 
-/* To invoke locally:
+    const { error } = await admin.auth.admin.inviteUserByEmail(email, {
+      data: { invited_role: role, full_name: full_name ?? '' },
+      redirectTo: `${req.headers.get('origin') ?? 'https://learn.efac.org'}/set-password`,
+    })
+    if (error) throw error
 
-  1. Run `supabase start` (see: https://supabase.com/docs/reference/cli/supabase-start)
-  2. Make an HTTP request:
-
-  curl -i --location --request POST 'http://127.0.0.1:54321/functions/v1/invite-user' \
-    --header 'apiKey: sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH' \
-    --data '{"name":"Functions"}'
-
-*/
+    return new Response(JSON.stringify({ ok: true }), { headers: json })
+  } catch (e) {
+    return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: json })
+  }
+})

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import Layout from '../components/Layout'
+import Avatar from '../components/Avatar'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { inputClass, btnClass, Field } from './Signup'
@@ -40,7 +41,9 @@ export default function CourseEditor() {
   const { id } = useParams()
   const isNew = id === 'new'
   const navigate = useNavigate()
-  const { session } = useAuth()
+  const { session, profile } = useAuth()
+  const userId = session?.user?.id
+  const isAdmin = profile?.role === 'admin'
 
   // course fields
   const [title, setTitle] = useState('')
@@ -63,6 +66,15 @@ export default function CourseEditor() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
+  // collaborator management (owner/admin only)
+  const [courseInstructorId, setCourseInstructorId] = useState(null)
+  const [collaborators, setCollaborators] = useState([])     // { instructor_id, profiles: { full_name, avatar_url } }
+  const [allInstructors, setAllInstructors] = useState([])   // profiles with role='instructor'
+  const [addCollabId, setAddCollabId] = useState('')
+  const [collabSearch, setCollabSearch] = useState('')
+  const [addingCollab, setAddingCollab] = useState(false)
+  const [collabError, setCollabError] = useState('')
+
   // ── load existing course ────────────────────────────────────────────────
   useEffect(() => {
     if (isNew) return
@@ -70,7 +82,7 @@ export default function CourseEditor() {
       const { data, error: err } = await supabase
         .from('courses')
         .select(`
-          id, title, description, cover_image, is_published,
+          id, title, description, cover_image, is_published, instructor_id,
           modules (
             id, title, order_index, outcome, reflective_question, image_url,
             quizzes ( id, title, passing_score, max_attempts ),
@@ -90,6 +102,7 @@ export default function CourseEditor() {
       setDescription(data.description ?? '')
       setCoverUrl(data.cover_image ?? '')
       setIsPublished(data.is_published ?? false)
+      setCourseInstructorId(data.instructor_id ?? null)
       setModules(
         [...(data.modules ?? [])]
           .sort((a, b) => a.order_index - b.order_index)
@@ -127,6 +140,22 @@ export default function CourseEditor() {
             }
           }),
       )
+
+      // Load collaborators and full instructor roster in parallel
+      const [collabRes, instructorRes] = await Promise.all([
+        supabase
+          .from('course_instructors')
+          .select('instructor_id, profiles!instructor_id(full_name, avatar_url)')
+          .eq('course_id', id),
+        supabase
+          .from('profiles')
+          .select('id, full_name')
+          .eq('role', 'instructor')
+          .order('full_name'),
+      ])
+      setCollaborators(collabRes.data ?? [])
+      setAllInstructors(instructorRes.data ?? [])
+
       setLoading(false)
     }
     fetch()
@@ -406,6 +435,55 @@ export default function CourseEditor() {
     )
   }
 
+  // ── collaborator handlers ────────────────────────────────────────────────
+  async function handleAddCollab() {
+    if (!addCollabId) return
+    setAddingCollab(true)
+    setCollabError('')
+    const { error: err } = await supabase
+      .from('course_instructors')
+      .insert({ course_id: id, instructor_id: addCollabId, added_by: userId })
+    setAddingCollab(false)
+    if (err) {
+      setCollabError(err.message ?? 'Failed to add collaborator.')
+    } else {
+      const added = allInstructors.find((p) => p.id === addCollabId)
+      setCollaborators((prev) => [
+        ...prev,
+        { instructor_id: addCollabId, profiles: { full_name: added?.full_name ?? '', avatar_url: null } },
+      ])
+      setAddCollabId('')
+      setCollabSearch('')
+    }
+  }
+
+  async function handleRemoveCollab(instructorId) {
+    setCollabError('')
+    const { error: err } = await supabase
+      .from('course_instructors')
+      .delete()
+      .eq('course_id', id)
+      .eq('instructor_id', instructorId)
+    if (err) {
+      setCollabError(err.message ?? 'Failed to remove collaborator.')
+    } else {
+      setCollaborators((prev) => prev.filter((c) => c.instructor_id !== instructorId))
+    }
+  }
+
+  // ── computed ─────────────────────────────────────────────────────────────
+  const isOwner = Boolean(courseInstructorId && courseInstructorId === userId)
+  const canManageCollabs = !isNew && (isOwner || isAdmin)
+  const collabSet = new Set(collaborators.map((c) => c.instructor_id))
+  const eligibleInstructors = allInstructors.filter(
+    (p) => p.id !== courseInstructorId && !collabSet.has(p.id),
+  )
+  const filteredInstructors = collabSearch.trim()
+    ? eligibleInstructors.filter((p) =>
+        (p.full_name ?? '').toLowerCase().includes(collabSearch.toLowerCase()),
+      )
+    : eligibleInstructors
+
   // ── render ───────────────────────────────────────────────────────────────
   if (loading) {
     return (
@@ -482,6 +560,92 @@ export default function CourseEditor() {
           <span className="text-sm font-medium text-ink/80">Published</span>
         </label>
       </section>
+
+      {/* ── Collaborators ───────────────────────────────── owner/admin only */}
+      {canManageCollabs && (
+        <section className="mb-8 overflow-hidden rounded-xl border border-teal/10 bg-white">
+          <div className="border-b border-teal/10 px-6 py-4">
+            <h2 className="font-display text-xl font-semibold text-teal-dark">Collaborators</h2>
+            <p className="mt-0.5 text-sm text-ink/50">
+              Collaborators can edit course content. Only the course owner and admins see this panel.
+            </p>
+          </div>
+
+          {/* Current collaborators */}
+          {collaborators.length === 0 ? (
+            <p className="px-6 py-4 text-sm text-ink/40">No collaborators added yet.</p>
+          ) : (
+            <ul className="divide-y divide-ink/5">
+              {collaborators.map((c) => (
+                <li key={c.instructor_id} className="flex items-center justify-between px-6 py-3.5">
+                  <div className="flex items-center gap-2.5">
+                    <Avatar
+                      url={c.profiles?.avatar_url}
+                      name={c.profiles?.full_name}
+                      className="h-7 w-7 shrink-0 text-[10px] font-extrabold"
+                    />
+                    <span className="text-sm font-medium text-ink">
+                      {c.profiles?.full_name ?? '—'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveCollab(c.instructor_id)}
+                    className="text-xs font-medium text-clay transition-colors hover:underline"
+                  >
+                    Remove
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {/* Add collaborator */}
+          <div className="border-t border-teal/10 bg-sand/30 px-6 py-5">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-ink/40">
+              Add collaborator
+            </p>
+            {eligibleInstructors.length === 0 ? (
+              <p className="text-sm text-ink/40">No other instructors available to add.</p>
+            ) : (
+              <div className="space-y-2">
+                <input
+                  type="search"
+                  placeholder="Filter by name…"
+                  value={collabSearch}
+                  onChange={(e) => { setCollabSearch(e.target.value); setAddCollabId('') }}
+                  className={inputClass}
+                />
+                <div className="flex items-center gap-3">
+                  <select
+                    value={addCollabId}
+                    onChange={(e) => setAddCollabId(e.target.value)}
+                    className={`${inputClass} flex-1`}
+                  >
+                    <option value="">Select an instructor…</option>
+                    {filteredInstructors.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.full_name}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={handleAddCollab}
+                    disabled={!addCollabId || addingCollab}
+                    className={`${btnClass} w-auto shrink-0 px-4 py-2 disabled:opacity-60`}
+                  >
+                    {addingCollab ? 'Adding…' : 'Add'}
+                  </button>
+                </div>
+              </div>
+            )}
+            {collabError && (
+              <p className="mt-2 text-sm text-clay">{collabError}</p>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* ── Modules ─────────────────────────────────────────────────────── */}
       <section>

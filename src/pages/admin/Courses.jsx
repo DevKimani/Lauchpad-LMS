@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Search, BookOpen, CheckCircle, Circle, ExternalLink } from 'lucide-react'
+import { Search, BookOpen, CheckCircle, Circle, ExternalLink, Pencil } from 'lucide-react'
 import Layout from '../../components/Layout'
 import { supabase } from '../../lib/supabase'
 
@@ -16,7 +16,7 @@ export default function AdminCourses() {
         supabase
           .from('courses')
           .select(
-            'id, title, published, created_at, profiles!instructor_id ( full_name )',
+            'id, title, is_published, created_at, profiles!instructor_id ( full_name )',
           )
           .order('created_at', { ascending: false }),
         supabase.from('enrollments').select('course_id'),
@@ -46,7 +46,7 @@ export default function AdminCourses() {
       )
     : courses
 
-  const publishedCount = courses.filter((c) => c.published).length
+  const publishedCount = courses.filter((c) => c.is_published).length
 
   return (
     <Layout>
@@ -145,8 +145,8 @@ export default function AdminCourses() {
                     )}
                   </td>
                   <td className="px-5 py-3.5">
-                    {course.published ? (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-teal-light px-2.5 py-0.5 text-xs font-medium text-teal">
+                    {course.is_published ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-teal-tint px-2.5 py-0.5 text-xs font-medium text-teal">
                         <CheckCircle size={11} strokeWidth={2.5} aria-hidden="true" />
                         Published
                       </span>
@@ -161,14 +161,24 @@ export default function AdminCourses() {
                     {enrolCounts[course.id] ?? 0}
                   </td>
                   <td className="px-4 py-3.5">
-                    <Link
-                      to={`/courses/${course.id}`}
-                      className="inline-flex items-center gap-1 text-xs font-medium text-teal opacity-0 transition-opacity group-hover:opacity-100 hover:underline focus:opacity-100"
-                      aria-label={`View ${course.title}`}
-                    >
-                      View
-                      <ExternalLink size={11} strokeWidth={2} aria-hidden="true" />
-                    </Link>
+                    <div className="flex items-center justify-end gap-3 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+                      <Link
+                        to={`/instructor/courses/${course.id}`}
+                        className="inline-flex items-center gap-1 text-xs font-medium text-teal hover:underline"
+                        aria-label={`Edit ${course.title}`}
+                      >
+                        <Pencil size={11} strokeWidth={2} aria-hidden="true" />
+                        Edit
+                      </Link>
+                      <Link
+                        to={`/courses/${course.id}`}
+                        className="inline-flex items-center gap-1 text-xs font-medium text-ink/50 hover:text-teal hover:underline"
+                        aria-label={`View ${course.title}`}
+                      >
+                        View
+                        <ExternalLink size={11} strokeWidth={2} aria-hidden="true" />
+                      </Link>
+                    </div>
                   </td>
                 </tr>
               ))}

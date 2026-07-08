@@ -336,6 +336,9 @@ function JobRow({ job, toggling, deleting, onEdit, onToggle, onDelete }) {
                 </span>
               </>
             )}
+            {job.profiles?.full_name && (
+              <><span className="mx-1.5 text-edge">·</span>by {job.profiles.full_name}</>
+            )}
           </p>
         </div>
 
@@ -406,7 +409,7 @@ export default function ManageJobs() {
   async function loadJobs() {
     const { data } = await supabase
       .from('jobs')
-      .select('*')
+      .select('*, profiles!posted_by(full_name)')
       .order('created_at', { ascending: false })
     setJobs(data ?? [])
   }
