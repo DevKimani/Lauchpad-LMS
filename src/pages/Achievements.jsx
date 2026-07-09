@@ -18,7 +18,7 @@ export default function Achievements() {
       .from('certificates')
       .select('id, created_at, courses ( id, title )')
       .eq('status', 'issued')
-      .eq('user_id', userId)
+      .eq('learner_id', userId)
       .order('created_at', { ascending: false })
       .then(({ data, error }) => {
         if (error) setLoadError('Failed to load achievements — try refreshing.')

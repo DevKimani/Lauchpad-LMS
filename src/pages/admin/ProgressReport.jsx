@@ -231,9 +231,9 @@ export default function ProgressReport() {
           : Promise.resolve({ data: [] }),
         supabase
           .from('certificates')
-          .select('user_id, status')
+          .select('learner_id, status')
           .eq('course_id', selectedCourseId)
-          .in('user_id', learnerIds),
+          .in('learner_id', learnerIds),
       ])
 
       // Build lookup maps
@@ -262,7 +262,7 @@ export default function ProgressReport() {
       }
 
       const certMap = {}
-      for (const c of certRes.data ?? []) certMap[c.user_id] = { status: c.status }
+      for (const c of certRes.data ?? []) certMap[c.learner_id] = { status: c.status }
 
       // Build per-learner rows
       const rows = learnerIds.map((learnerId) => {

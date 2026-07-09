@@ -67,7 +67,7 @@ export default function JobsReport() {
         supabase
           .from('jobs')
           .select('id', { count: 'exact', head: true })
-          .eq('published', true),
+          .eq('is_published', true),
         supabase
           .from('job_clicks')
           .select('job_id, learner_id, clicked_at, jobs(id, title, organisation, created_at, deadline), profiles(full_name, efac_id)')

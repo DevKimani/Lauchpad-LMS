@@ -50,7 +50,7 @@ export default function Catalog() {
           .from('certificates')
           .select('courses ( id )')
           .eq('status', 'issued')
-          .eq('user_id', userId),
+          .eq('learner_id', userId),
       ])
 
       setCourses(

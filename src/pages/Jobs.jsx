@@ -177,12 +177,12 @@ export default function Jobs() {
         supabase
           .from('jobs')
           .select('*')
-          .eq('published', true)
+          .eq('is_published', true)
           .order('created_at', { ascending: false }),
         supabase
           .from('saved_jobs')
           .select('job_id')
-          .eq('user_id', userId),
+          .eq('learner_id', userId),
       ])
       setJobs(jobsRes.data ?? [])
       setSavedIds(new Set((savedRes.data ?? []).map((r) => r.job_id)))
@@ -198,14 +198,14 @@ export default function Jobs() {
     setSavingId(jobId)
     const isSaved = savedIds.has(jobId)
     if (isSaved) {
-      await supabase.from('saved_jobs').delete().eq('job_id', jobId).eq('user_id', userId)
+      await supabase.from('saved_jobs').delete().eq('job_id', jobId).eq('learner_id', userId)
       setSavedIds((prev) => {
         const s = new Set(prev)
         s.delete(jobId)
         return s
       })
     } else {
-      await supabase.from('saved_jobs').insert({ job_id: jobId, user_id: userId })
+      await supabase.from('saved_jobs').insert({ job_id: jobId, learner_id: userId })
       setSavedIds((prev) => new Set([...prev, jobId]))
     }
     setSavingId(null)

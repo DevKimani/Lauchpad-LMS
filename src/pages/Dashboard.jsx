@@ -62,7 +62,7 @@ function LearnerHome() {
           .eq('learner_id', userId),
         supabase
           .from('lesson_progress')
-          .select('lesson_id, completed, created_at')
+          .select('lesson_id, completed, completed_at')
           .eq('learner_id', userId),
         supabase
           .from('submissions')
@@ -72,7 +72,7 @@ function LearnerHome() {
           .from('certificates')
           .select('id', { count: 'exact', head: true })
           .eq('status', 'issued')
-          .eq('user_id', userId),
+          .eq('learner_id', userId),
       ])
 
       // Build progress map + collect dates for streak
@@ -80,8 +80,8 @@ function LearnerHome() {
       const completedDates = new Set()
       for (const r of progressRes.data ?? []) {
         pMap[r.lesson_id] = r.completed
-        if (r.completed && r.created_at) {
-          completedDates.add(r.created_at.slice(0, 10))
+        if (r.completed && r.completed_at) {
+          completedDates.add(r.completed_at.slice(0, 10))
         }
       }
       setProgressMap(pMap)
@@ -110,7 +110,7 @@ function LearnerHome() {
         const { data: cat } = await supabase
           .from('courses')
           .select('id, title, cover_image, category, modules ( lessons ( id ) )')
-          .eq('published', true)
+          .eq('is_published', true)
           .order('created_at', { ascending: false })
           .limit(9)
         setAvailableCourses(
