@@ -213,13 +213,13 @@ export default function Jobs() {
 
   // ── apply click tracking ──────────────────────────────────────────────────
 
-  function handleApply(jobId, applyUrl) {
-    // Insert and navigate concurrently — tracking must never block the link.
-    supabase
-      .from('job_clicks')
-      .insert({ job_id: jobId, learner_id: userId })
-      .catch(() => {})
-    window.open(applyUrl, '_blank', 'noopener,noreferrer')
+  async function handleApply(job) {
+    if (job.apply_url) window.open(job.apply_url, '_blank', 'noopener,noreferrer')
+    try {
+      await supabase.from('job_clicks').insert({ job_id: job.id, learner_id: userId })
+    } catch (e) {
+      console.error('click tracking failed', e)
+    }
   }
 
   // ── derived: filter options ───────────────────────────────────────────────
@@ -402,7 +402,7 @@ export default function Jobs() {
               isSaved={savedIds.has(job.id)}
               isSaving={savingId === job.id}
               onToggleSave={() => toggleSave(job.id)}
-              onApply={() => handleApply(job.id, job.apply_url)}
+              onApply={() => handleApply(job)}
               dimmed={false}
             />
           ))}
@@ -424,7 +424,7 @@ export default function Jobs() {
                   isSaved={savedIds.has(job.id)}
                   isSaving={savingId === job.id}
                   onToggleSave={() => toggleSave(job.id)}
-                  onApply={() => handleApply(job.id, job.apply_url)}
+                  onApply={() => handleApply(job)}
                   dimmed
                 />
               ))}
