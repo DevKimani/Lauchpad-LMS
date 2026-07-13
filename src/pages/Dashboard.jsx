@@ -1,12 +1,31 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Users, BookOpen, BarChart2 } from 'lucide-react'
+import { Users, BookOpen, BarChart2, Trophy } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import Layout from '../components/Layout'
 import TopNav from '../components/TopNav'
 import NotificationBell from '../components/NotificationBell'
+import Avatar from '../components/Avatar'
 import { supabase } from '../lib/supabase'
 import { getFileUrl } from '../lib/files'
+
+// ── shared widget helpers ─────────────────────────────────────────────────────
+
+const GOLD = '#ffba08'
+
+function shortName(fullName) {
+  if (!fullName) return 'Scholar'
+  const parts = fullName.trim().split(/\s+/)
+  if (parts.length === 1) return parts[0]
+  return `${parts[0]} ${parts[parts.length - 1][0]}.`
+}
+
+const WIDGET_POINTS = [
+  { label: 'Lesson completed',  pts: 5  },
+  { label: 'Active day',        pts: 1  },
+  { label: 'Profile complete',  pts: 20 },
+  { label: 'Job application',   pts: 10 },
+]
 
 // ── Root router ───────────────────────────────────────────────────────────────
 // Learner gets its own full-page chrome; instructor/admin use the shared Layout.
@@ -153,6 +172,12 @@ function LearnerHome() {
         : 0
     return { courseId, course, modules: enriched, courseLessonsDone, courseLessonsTotal, coursePct }
   })
+
+  // Prefer a Wezesha course for the leaderboard; fall back to first enrolled.
+  const leaderboardCourseId =
+    rawEnrollments.find((e) => /wezesha/i.test(e.course?.title))?.courseId ??
+    rawEnrollments[0]?.courseId ??
+    null
 
   const totalModules = enrollments.reduce((s, e) => s + e.modules.length, 0)
   const doneModules = enrollments.reduce(
@@ -439,6 +464,11 @@ function LearnerHome() {
                 </div>
               </div>
 
+              {/* Leaderboard widget ──────────────────────────────────── */}
+              {leaderboardCourseId && (
+                <LeaderboardWidget courseId={leaderboardCourseId} userId={userId} />
+              )}
+
             </div>
           </div>
 
@@ -689,6 +719,150 @@ function computeStreak(datesSet) {
     else break
   }
   return count
+}
+
+// ── BoardRow ──────────────────────────────────────────────────────────────────
+// One compact row used inside LeaderboardWidget.
+
+function BoardRow({ entry, isUser }) {
+  const { rank, avatar_url, full_name, points } = entry
+  const rankStyle = rank === 1 ? { color: GOLD } : {}
+  const rankCls   = rank === 2 ? 'text-teal' : rank === 3 ? 'text-orange' : 'text-ink/35'
+
+  return (
+    <div
+      className={`flex items-center gap-2 rounded-lg px-2 py-1.5 ${
+        isUser ? 'bg-orange-tint' : ''
+      }`}
+    >
+      <span
+        className={`w-5 shrink-0 font-display text-xs font-bold tabular-nums ${
+          rank === 1 ? '' : rankCls
+        }`}
+        style={rankStyle}
+      >
+        #{rank}
+      </span>
+      <Avatar
+        url={avatar_url}
+        name={full_name}
+        className="h-6 w-6 shrink-0 text-[8px] font-extrabold"
+      />
+      <span
+        className={`flex-1 truncate text-[13px] font-semibold ${
+          isUser ? 'text-orange' : 'text-ink/70'
+        }`}
+      >
+        {isUser ? 'You' : shortName(full_name)}
+      </span>
+      <span
+        className={`shrink-0 font-display text-[11px] font-bold tabular-nums ${
+          isUser ? 'text-orange' : 'text-muted'
+        }`}
+      >
+        {(points ?? 0).toLocaleString()}
+        <span className="ml-0.5 font-sans text-[9px] font-normal">pts</span>
+      </span>
+    </div>
+  )
+}
+
+// ── LeaderboardWidget ─────────────────────────────────────────────────────────
+// Sidebar card: top 3 + user neighbourhood + points-work expander.
+
+function LeaderboardWidget({ courseId, userId }) {
+  const [board, setBoard]           = useState([])
+  const [loading, setLoading]       = useState(true)
+  const [showPoints, setShowPoints] = useState(false)
+
+  useEffect(() => {
+    setLoading(true)
+    supabase
+      .rpc('course_leaderboard', { p_course: courseId })
+      .then(({ data }) => {
+        setBoard(data ?? [])
+        setLoading(false)
+      })
+  }, [courseId])
+
+  if (loading) {
+    return (
+      <div className="efac-card p-5">
+        <div className="mb-3 h-5 w-28 animate-pulse rounded bg-ink/8" />
+        <div className="space-y-2">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="h-7 animate-pulse rounded-lg bg-ink/5" />
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  if (board.length === 0) return null
+
+  const top3      = board.slice(0, 3)
+  const userIdx   = board.findIndex((r) => r.learner_id === userId)
+  const userEntry = userIdx >= 0 ? board[userIdx] : null
+  const inTop3    = userIdx >= 0 && userIdx <= 2
+  // Person directly above the user — only shown when user isn't in the top 3,
+  // so the reader can see who they need to beat.
+  const oneAbove  = !inTop3 && userIdx > 0 ? board[userIdx - 1] : null
+
+  return (
+    <div className="efac-card p-5">
+      {/* Header */}
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-[17px] font-bold text-ink">Leaderboard</h2>
+        <Trophy size={15} strokeWidth={1.75} className="text-muted" aria-hidden="true" />
+      </div>
+
+      {/* Top 3 */}
+      <div className="space-y-0.5">
+        {top3.map((entry) => (
+          <BoardRow
+            key={entry.learner_id}
+            entry={entry}
+            isUser={entry.learner_id === userId}
+          />
+        ))}
+      </div>
+
+      {/* User neighbourhood */}
+      <div className="my-3 border-t border-ink/8" />
+      {userEntry ? (
+        <div className="space-y-0.5">
+          {oneAbove && (
+            <BoardRow key={oneAbove.learner_id} entry={oneAbove} isUser={false} />
+          )}
+          <BoardRow key={`user-${userEntry.learner_id}`} entry={userEntry} isUser />
+        </div>
+      ) : (
+        <p className="text-center text-[12px] text-muted">
+          Complete a lesson to appear on the board.
+        </p>
+      )}
+
+      {/* How points work — inline expander */}
+      <button
+        type="button"
+        onClick={() => setShowPoints((v) => !v)}
+        className="mt-3.5 flex items-center gap-1 text-[11px] font-semibold text-muted transition-colors hover:text-ink"
+      >
+        How points work
+        <span className="text-[8px]" aria-hidden="true">{showPoints ? '▴' : '▾'}</span>
+      </button>
+      {showPoints && (
+        <div className="mt-2 space-y-1.5 rounded-lg bg-paper px-3 py-2.5">
+          {WIDGET_POINTS.map(({ label, pts }) => (
+            <div key={label} className="flex items-center justify-between gap-2">
+              <span className="text-[11px] text-muted">{label}</span>
+              <span className="font-display text-[11px] font-bold text-orange">+{pts}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

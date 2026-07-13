@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useIdleTimeout, WARN_BEFORE_MS } from '../hooks/useIdleTimeout'
 
@@ -32,6 +32,18 @@ export function AuthProvider({ children }) {
   const [profile, setProfile] = useState(null) // holds the user's role + name
   const [loading, setLoading] = useState(true)
 
+  // Fire at most once per app load — records today as an active day for the learner.
+  const activityFiredRef = useRef(false)
+  function recordActivityDay(userId) {
+    if (activityFiredRef.current) return
+    activityFiredRef.current = true
+    supabase
+      .from('activity_days')
+      .upsert({ learner_id: userId }, { onConflict: 'learner_id,day', ignoreDuplicates: true })
+      .then()
+      .catch(() => {})
+  }
+
   // Load the profile row (which carries the role) for a signed-in user.
   async function loadProfile(userId) {
     const { data, error } = await supabase
@@ -51,15 +63,23 @@ export function AuthProvider({ children }) {
     // Get the current session on first load.
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
-      if (session?.user) loadProfile(session.user.id).finally(() => setLoading(false))
-      else setLoading(false)
+      if (session?.user) {
+        recordActivityDay(session.user.id)
+        loadProfile(session.user.id).finally(() => setLoading(false))
+      } else {
+        setLoading(false)
+      }
     })
 
     // Keep state in sync as the user logs in / out.
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
-      if (session?.user) loadProfile(session.user.id)
-      else setProfile(null)
+      if (session?.user) {
+        recordActivityDay(session.user.id) // no-op after first call thanks to ref
+        loadProfile(session.user.id)
+      } else {
+        setProfile(null)
+      }
     })
 
     return () => listener.subscription.unsubscribe()

@@ -13,8 +13,7 @@ const NAV_LINKS = [
   { label: 'Courses',  to: '/courses',   match: (p) => p === '/courses' },
   { label: 'Library',  to: '/courses',   match: ()  => false },
   { label: 'Progress', to: '/progress',  match: (p) => p === '/progress' },
-  { label: 'Jobs',         to: '/jobs',         match: (p) => p === '/jobs'         },
-  { label: 'Leaderboard', to: '/leaderboard',  match: (p) => p === '/leaderboard'  },
+  { label: 'Jobs',     to: '/jobs',      match: (p) => p === '/jobs' },
 ]
 
 export default function TopNav() {
