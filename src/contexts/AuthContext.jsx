@@ -1,7 +1,31 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { useIdleTimeout, WARN_BEFORE_MS } from '../hooks/useIdleTimeout'
 
 const AuthContext = createContext(null)
+
+const WARN_MINUTES = Math.round(WARN_BEFORE_MS / 60_000)
+
+function IdleWarningBanner({ onStay }) {
+  return (
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center p-4">
+      <div className="pointer-events-auto flex w-full max-w-lg items-center justify-between gap-4 rounded-xl border border-orange/30 bg-orange-tint px-5 py-4 shadow-lg">
+        <p className="text-sm font-medium text-ink">
+          You'll be signed out in{' '}
+          <strong>{WARN_MINUTES} minute{WARN_MINUTES !== 1 ? 's' : ''}</strong> due to
+          inactivity.
+        </p>
+        <button
+          type="button"
+          onClick={onStay}
+          className="shrink-0 rounded-lg bg-orange px-4 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-orange-dark"
+        >
+          Stay signed in
+        </button>
+      </div>
+    </div>
+  )
+}
 
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null)
@@ -61,8 +85,15 @@ export function AuthProvider({ children }) {
     if (session?.user) await loadProfile(session.user.id)
   }
 
+  const { showWarning, staySignedIn } = useIdleTimeout(!!session)
+
   const value = { session, profile, loading, signUp, signIn, signOut, refreshProfile }
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+      {showWarning && <IdleWarningBanner onStay={staySignedIn} />}
+    </AuthContext.Provider>
+  )
 }
 
 export function useAuth() {

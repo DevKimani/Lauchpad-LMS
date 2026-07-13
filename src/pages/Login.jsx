@@ -1,11 +1,16 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { AuthShell, Field, btnClass, PasswordInput } from './Signup'
+import { IDLE_TIMEOUT_MS } from '../hooks/useIdleTimeout'
+
+const TIMEOUT_MINUTES = Math.round(IDLE_TIMEOUT_MS / 60_000)
 
 export default function Login() {
   const { signIn } = useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const timedOut = searchParams.get('reason') === 'timeout'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -24,6 +29,12 @@ export default function Login() {
 
   return (
     <AuthShell title="Welcome back" subtitle="Sign in to continue learning.">
+      {timedOut && (
+        <div className="mb-4 rounded-lg border border-ink/15 bg-sand px-4 py-3 text-sm text-ink/70">
+          You were signed out after {TIMEOUT_MINUTES} minutes of inactivity. Please sign
+          in again.
+        </div>
+      )}
       <form onSubmit={handleSubmit} className="space-y-4">
         <Field label="Email" id="email">
           <input
