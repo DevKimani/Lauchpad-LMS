@@ -32,6 +32,7 @@ import ManageJobs from './pages/admin/ManageJobs'
 import JobsReport from './pages/admin/JobsReport'
 import Profile from './pages/Profile'
 import SetPassword from './pages/SetPassword'
+import Leaderboard from './pages/Leaderboard'
 import ProtectedRoute from './components/ProtectedRoute'
 
 export default function App() {
@@ -64,6 +65,14 @@ export default function App() {
         element={
           <ProtectedRoute>
             <Jobs />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/leaderboard"
+        element={
+          <ProtectedRoute>
+            <Leaderboard />
           </ProtectedRoute>
         }
       />
