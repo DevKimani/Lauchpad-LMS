@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { BookOpen } from 'lucide-react'
-import Layout from '../components/Layout'
+import ConsoleLayout from '../components/ConsoleLayout'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { btnClass } from './Signup'
@@ -134,9 +134,8 @@ export default function MyCourses() {
   const isEmpty = !loading && courses.length === 0
 
   return (
-    <Layout>
-      <div className="mb-8 flex items-center justify-between">
-        <h1 className="font-display text-3xl font-semibold text-navy">My Courses</h1>
+    <ConsoleLayout title="My Courses">
+      <div className="mb-6 flex justify-end">
         <Link to="/instructor/courses/new" className={`${btnClass} w-auto px-5 py-2`}>
           New course
         </Link>
@@ -180,6 +179,6 @@ export default function MyCourses() {
           />
         </>
       )}
-    </Layout>
+    </ConsoleLayout>
   )
 }

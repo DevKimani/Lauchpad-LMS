@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import Layout from '../components/Layout'
+import ConsoleLayout from '../components/ConsoleLayout'
 import Avatar from '../components/Avatar'
 import FileLink from '../components/FileLink'
 import { supabase } from '../lib/supabase'
@@ -152,24 +152,23 @@ export default function FeedbackInbox() {
 
   if (loading) {
     return (
-      <Layout>
-        <p className="text-ink/60">Loading feedback inbox…</p>
-      </Layout>
+      <ConsoleLayout title="Feedback Inbox">
+        <div className="space-y-4">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="h-32 animate-pulse rounded-xl bg-ink/5" />
+          ))}
+        </div>
+      </ConsoleLayout>
     )
   }
 
   return (
-    <Layout>
-      <div className="mb-8">
-        <h1 className="font-display text-3xl font-semibold text-navy">
-          Feedback inbox
-        </h1>
-        <p className="mt-1 text-ink/60">
-          {pendingItems.length === 0
-            ? 'All caught up — no submissions awaiting review.'
-            : `${pendingItems.length} submission${pendingItems.length !== 1 ? 's' : ''} awaiting review`}
-        </p>
-      </div>
+    <ConsoleLayout title="Feedback Inbox">
+      <p className="mb-6 text-sm text-ink/60">
+        {pendingItems.length === 0
+          ? 'All caught up — no submissions awaiting review.'
+          : `${pendingItems.length} submission${pendingItems.length !== 1 ? 's' : ''} awaiting review`}
+      </p>
 
       {loadError && (
         <p className="mb-6 rounded-lg bg-clay/10 px-4 py-3 text-sm text-clay">
@@ -199,7 +198,7 @@ export default function FeedbackInbox() {
                   key === 'submitted' && tab === key
                     ? 'bg-clay/10 text-clay'
                     : tab === key
-                      ? 'bg-orange-light text-navy'
+                      ? 'bg-orange-tint text-orange'
                       : 'bg-ink/10 text-ink/50'
                 }`}
               >
@@ -390,6 +389,6 @@ export default function FeedbackInbox() {
           })}
         </div>
       )}
-    </Layout>
+    </ConsoleLayout>
   )
 }

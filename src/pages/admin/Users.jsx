@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Search, Check, AlertCircle, Users, UserPlus, X } from 'lucide-react'
-import Layout from '../../components/Layout'
+import ConsoleLayout from '../../components/ConsoleLayout'
 import Avatar from '../../components/Avatar'
 import { supabase } from '../../lib/supabase'
 
@@ -9,8 +9,8 @@ const ROLES = ['learner', 'instructor', 'admin']
 const INVITE_ROLES = ['instructor', 'admin']
 
 const ROLE_CHIP = {
-  learner: 'bg-teal-light text-teal border-transparent',
-  instructor: 'bg-orange-light text-orange border-transparent',
+  learner: 'bg-teal-tint text-teal border-transparent',
+  instructor: 'bg-orange-tint text-orange border-transparent',
   admin: 'bg-navy/10 text-navy border-transparent',
 }
 
@@ -168,26 +168,15 @@ export default function AdminUsers() {
   }
 
   return (
-    <Layout>
+    <ConsoleLayout title="Users">
       {/* Header */}
-      <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <Link
-            to="/admin"
-            className="text-xs font-medium text-teal hover:underline"
-          >
-            ← Admin overview
-          </Link>
-          <h1 className="mt-1 font-display text-3xl font-semibold text-navy">
-            Users
-          </h1>
-          <p className="mt-1 text-sm text-ink/60">
-            {loading
-              ? 'Loading…'
-              : `${profiles.length} account${profiles.length !== 1 ? 's' : ''}`}
-            {' '}— change a role to approve or revoke instructor access.
-          </p>
-        </div>
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+        <p className="text-sm text-ink/60">
+          {loading
+            ? 'Loading…'
+            : `${profiles.length} account${profiles.length !== 1 ? 's' : ''}`}
+          {' '}— change a role to approve or revoke instructor access.
+        </p>
 
         {/* Search + Invite */}
         <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
@@ -453,6 +442,6 @@ export default function AdminUsers() {
           </table>
         </div>
       )}
-    </Layout>
+    </ConsoleLayout>
   )
 }

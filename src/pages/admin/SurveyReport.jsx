@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Download, ChevronDown, ChevronRight } from 'lucide-react'
-import Layout from '../../components/Layout'
+import ConsoleLayout from '../../components/ConsoleLayout'
 import { supabase } from '../../lib/supabase'
 
 // ── pure helpers ──────────────────────────────────────────────────────────────
@@ -445,26 +445,9 @@ export default function SurveyReport() {
   // ── render ─────────────────────────────────────────────────────────────────
 
   return (
-    <Layout>
-      {/* Header */}
-      <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <Link
-            to="/admin/reports"
-            className="text-xs font-medium text-teal hover:underline"
-          >
-            ← Reports
-          </Link>
-          <p className="mt-3 efac-eyebrow text-orange">Survey Analysis</p>
-          <h1 className="mt-1 font-display text-3xl font-semibold text-navy">
-            Pre / Post Survey Report
-          </h1>
-          <p className="mt-1 text-sm text-ink/60">
-            Learning confidence scores before and after the programme.
-          </p>
-        </div>
-
-        {hasResponses && (
+    <ConsoleLayout title="Survey Analysis">
+      {hasResponses && (
+        <div className="mb-6 flex justify-end">
           <button
             type="button"
             onClick={handleExportCsv}
@@ -473,8 +456,8 @@ export default function SurveyReport() {
             <Download size={15} strokeWidth={2} aria-hidden="true" />
             Export CSV
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Course selector */}
       <div className="mb-8">
@@ -654,6 +637,6 @@ export default function SurveyReport() {
           )}
         </div>
       )}
-    </Layout>
+    </ConsoleLayout>
   )
 }

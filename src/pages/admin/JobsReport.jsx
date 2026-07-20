@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { MousePointerClick, ChevronDown, ChevronUp, Download } from 'lucide-react'
-import Layout from '../../components/Layout'
+import ConsoleLayout from '../../components/ConsoleLayout'
 import { supabase } from '../../lib/supabase'
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -167,30 +167,19 @@ export default function JobsReport() {
   }
 
   return (
-    <Layout>
-      {/* ── Back + header ─────────────────────────────────────────────────── */}
-      <div className="mb-8">
-        <Link to="/admin/reports" className="text-xs font-medium text-teal hover:underline">
-          ← Reports
-        </Link>
-        <p className="mt-3 efac-eyebrow text-orange">Career engagement</p>
-        <div className="mt-1 flex flex-wrap items-end justify-between gap-4">
-          <h1 className="font-display text-3xl font-semibold text-navy">Jobs Report</h1>
-          {!loading && hasClicks && (
-            <button
-              type="button"
-              onClick={handleExport}
-              className="flex items-center gap-2 rounded-[10px] border border-line bg-card px-4 py-2 text-[13px] font-semibold text-ink transition-colors hover:border-ink/30"
-            >
-              <Download size={14} strokeWidth={2} aria-hidden="true" />
-              Export CSV
-            </button>
-          )}
+    <ConsoleLayout title="Jobs Report">
+      {!loading && hasClicks && (
+        <div className="mb-6 flex justify-end">
+          <button
+            type="button"
+            onClick={handleExport}
+            className="flex items-center gap-2 rounded-lg border border-ink/20 bg-white px-4 py-2.5 text-sm font-medium text-ink transition hover:border-teal hover:text-teal"
+          >
+            <Download size={14} strokeWidth={2} aria-hidden="true" />
+            Export CSV
+          </button>
         </div>
-        <p className="mt-1 text-sm text-ink/60">
-          Apply-click engagement across all posted jobs. For career-office use.
-        </p>
-      </div>
+      )}
 
       {/* ── Stat tiles ────────────────────────────────────────────────────── */}
       <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -348,6 +337,6 @@ export default function JobsReport() {
           </div>
         </div>
       )}
-    </Layout>
+    </ConsoleLayout>
   )
 }

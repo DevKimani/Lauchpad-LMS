@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import Layout from '../components/Layout'
+import ConsoleLayout from '../components/ConsoleLayout'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -88,24 +88,23 @@ export default function CertificationQueue() {
 
   if (loading) {
     return (
-      <Layout>
-        <p className="text-ink/60">Loading certification queue…</p>
-      </Layout>
+      <ConsoleLayout title="Certifications">
+        <div className="space-y-3">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="h-16 animate-pulse rounded-xl bg-ink/5" />
+          ))}
+        </div>
+      </ConsoleLayout>
     )
   }
 
   return (
-    <Layout>
-      <div className="mb-8">
-        <h1 className="font-display text-3xl font-semibold text-navy">
-          Certification queue
-        </h1>
-        <p className="mt-1 text-ink/60">
-          {certs.length === 0
-            ? 'No pending certificates — all caught up.'
-            : `${certs.length} certificate${certs.length !== 1 ? 's' : ''} awaiting issue`}
-        </p>
-      </div>
+    <ConsoleLayout title="Certifications">
+      <p className="mb-6 text-sm text-ink/60">
+        {certs.length === 0
+          ? 'No pending certificates — all caught up.'
+          : `${certs.length} certificate${certs.length !== 1 ? 's' : ''} awaiting issue`}
+      </p>
 
       {loadError && (
         <p className="mb-6 rounded-lg bg-clay/10 px-4 py-3 text-sm text-clay">
@@ -144,7 +143,7 @@ export default function CertificationQueue() {
                 return (
                   <tr
                     key={cert.id}
-                    className={`transition-colors ${justIssued ? 'bg-teal-light/30' : ''}`}
+                    className={`transition-colors ${justIssued ? 'bg-teal-tint/30' : ''}`}
                   >
                     <td className="px-5 py-4 font-medium text-ink">
                       {cert.profiles?.full_name ?? 'Unknown learner'}
@@ -163,7 +162,7 @@ export default function CertificationQueue() {
                     </td>
                     <td className="px-5 py-4 text-right">
                       {justIssued ? (
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-teal-light px-3 py-1 text-xs font-semibold text-teal">
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-teal-tint px-3 py-1 text-xs font-semibold text-teal">
                           <svg
                             viewBox="0 0 16 16"
                             fill="none"
@@ -200,7 +199,7 @@ export default function CertificationQueue() {
           </table>
         </div>
       )}
-    </Layout>
+    </ConsoleLayout>
   )
 }
 

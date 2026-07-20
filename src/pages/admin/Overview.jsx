@@ -10,7 +10,7 @@ import {
   BarChart2,
   Briefcase,
 } from 'lucide-react'
-import Layout from '../../components/Layout'
+import ConsoleLayout from '../../components/ConsoleLayout'
 import { supabase } from '../../lib/supabase'
 
 // ── Tile definitions ───────────────────────────────────────────────────────────
@@ -19,7 +19,7 @@ const TILES = [
     key: 'learners',
     label: 'Learners',
     icon: Users,
-    chip: 'bg-teal-light text-teal',
+    chip: 'bg-teal-tint text-teal',
     link: '/admin/users',
   },
   {
@@ -33,28 +33,28 @@ const TILES = [
     key: 'courses',
     label: 'Courses',
     icon: BookOpen,
-    chip: 'bg-orange-light text-orange',
+    chip: 'bg-orange-tint text-orange',
     link: '/admin/courses',
   },
   {
     key: 'enrolments',
     label: 'Enrolments',
     icon: UserCheck,
-    chip: 'bg-teal-light text-teal',
+    chip: 'bg-teal-tint text-teal',
     link: null,
   },
   {
     key: 'certificates',
     label: 'Certificates issued',
     icon: Award,
-    chip: 'bg-orange-light text-orange',
+    chip: 'bg-orange-tint text-orange',
     link: null,
   },
   {
     key: 'pending',
     label: 'Awaiting feedback',
     icon: Clock,
-    chip: 'bg-red/10 text-red',
+    chip: 'bg-clay/10 text-clay',
     link: '/instructor/feedback',
   },
 ]
@@ -119,19 +119,7 @@ export default function AdminOverview() {
   }, [])
 
   return (
-    <Layout>
-      {/* Page header */}
-      <div className="mb-8">
-        <p className="text-xs font-semibold uppercase tracking-widest text-orange">
-          Admin panel
-        </p>
-        <h1 className="mt-1 font-display text-3xl font-semibold text-navy">
-          Platform overview
-        </h1>
-        <p className="mt-1 text-sm text-ink/60">
-          Live statistics across the entire platform.
-        </p>
-      </div>
+    <ConsoleLayout title="Overview">
 
       {/* ── Metric tiles ─────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -209,7 +197,7 @@ export default function AdminOverview() {
           to="/admin/users"
           className="flex items-center gap-4 rounded-xl border border-ink/10 bg-white p-5 transition-shadow hover:shadow-sm"
         >
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-teal-light">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-teal-tint">
             <Users size={20} strokeWidth={1.75} className="text-teal" />
           </span>
           <div>
@@ -262,6 +250,6 @@ export default function AdminOverview() {
           </div>
         </Link>
       </div>
-    </Layout>
+    </ConsoleLayout>
   )
 }

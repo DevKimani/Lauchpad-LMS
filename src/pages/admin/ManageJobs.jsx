@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
 import {
   Plus,
   Pencil,
@@ -10,7 +9,7 @@ import {
   CheckCircle2,
   Info,
 } from 'lucide-react'
-import Layout from '../../components/Layout'
+import ConsoleLayout from '../../components/ConsoleLayout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 
@@ -102,13 +101,6 @@ function FormPanel({ editJob, form, errors, saving, setField, onSave, onCancel }
         <ChevronLeft size={13} aria-hidden="true" />
         Back to jobs
       </button>
-
-      <div className="mb-5">
-        <p className="efac-eyebrow text-orange">Career office</p>
-        <h1 className="mt-1 font-display text-3xl font-semibold text-navy">
-          {editJob ? 'Edit listing' : 'Post a new job'}
-        </h1>
-      </div>
 
       {/* Copyright / sourcing note */}
       <div className="mb-6 flex items-start gap-3 rounded-xl border border-orange/30 bg-orange-tint px-4 py-3.5">
@@ -526,7 +518,7 @@ export default function ManageJobs() {
 
   if (view === 'form') {
     return (
-      <Layout>
+      <ConsoleLayout title={editJob ? 'Edit Job' : 'New Job'}>
         <FormPanel
           editJob={editJob}
           form={form}
@@ -536,32 +528,23 @@ export default function ManageJobs() {
           onSave={handleSave}
           onCancel={() => setView('list')}
         />
-      </Layout>
+      </ConsoleLayout>
     )
   }
 
   return (
-    <Layout>
+    <ConsoleLayout title="Manage Jobs">
       {/* ── Header ──────────────────────────────────────────────────────────── */}
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <Link to="/admin" className="text-xs font-semibold text-teal hover:underline">
-            ← Admin
-          </Link>
-          <p className="mt-3 efac-eyebrow text-orange">Career office</p>
-          <h1 className="mt-1 font-display text-3xl font-semibold text-navy">
-            Manage jobs
-          </h1>
-          {!loading && (
-            <p className="mt-1 text-sm text-muted">
-              {jobs.length} listing{jobs.length !== 1 ? 's' : ''} ·{' '}
-              <span className="text-teal">{publishedCount} published</span>
-              {draftCount > 0 && (
-                <> · <span>{draftCount} draft{draftCount !== 1 ? 's' : ''}</span></>
-              )}
-            </p>
-          )}
-        </div>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+        {!loading && (
+          <p className="text-sm text-muted">
+            {jobs.length} listing{jobs.length !== 1 ? 's' : ''} ·{' '}
+            <span className="text-teal">{publishedCount} published</span>
+            {draftCount > 0 && (
+              <> · <span>{draftCount} draft{draftCount !== 1 ? 's' : ''}</span></>
+            )}
+          </p>
+        )}
         <button type="button" onClick={openNew} className="efac-btn">
           <Plus size={16} strokeWidth={2.5} aria-hidden="true" />
           New job
@@ -634,6 +617,6 @@ export default function ManageJobs() {
           ))}
         </div>
       )}
-    </Layout>
+    </ConsoleLayout>
   )
 }

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Search, BookOpen, CheckCircle, Circle, ExternalLink, Pencil } from 'lucide-react'
-import Layout from '../../components/Layout'
+import ConsoleLayout from '../../components/ConsoleLayout'
 import { supabase } from '../../lib/supabase'
 
 export default function AdminCourses() {
@@ -49,25 +49,14 @@ export default function AdminCourses() {
   const publishedCount = courses.filter((c) => c.is_published).length
 
   return (
-    <Layout>
+    <ConsoleLayout title="Courses">
       {/* Header */}
-      <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <Link
-            to="/admin"
-            className="text-xs font-medium text-teal hover:underline"
-          >
-            ← Admin overview
-          </Link>
-          <h1 className="mt-1 font-display text-3xl font-semibold text-navy">
-            All courses
-          </h1>
-          <p className="mt-1 text-sm text-ink/60">
-            {loading
-              ? 'Loading…'
-              : `${courses.length} course${courses.length !== 1 ? 's' : ''} · ${publishedCount} published`}
-          </p>
-        </div>
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+        <p className="text-sm text-ink/60">
+          {loading
+            ? 'Loading…'
+            : `${courses.length} course${courses.length !== 1 ? 's' : ''} · ${publishedCount} published`}
+        </p>
 
         {/* Search */}
         <div className="relative w-full sm:w-72">
@@ -186,6 +175,6 @@ export default function AdminCourses() {
           </table>
         </div>
       )}
-    </Layout>
+    </ConsoleLayout>
   )
 }

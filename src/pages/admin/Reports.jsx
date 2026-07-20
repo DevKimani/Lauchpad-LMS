@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { BarChart2, FileText, Award, TrendingUp, MousePointerClick, ArrowRight } from 'lucide-react'
-import Layout from '../../components/Layout'
+import ConsoleLayout from '../../components/ConsoleLayout'
 import { supabase } from '../../lib/supabase'
 
 export default function AdminReports() {
@@ -28,18 +28,7 @@ export default function AdminReports() {
   }, [])
 
   return (
-    <Layout>
-      <div className="mb-8">
-        <Link to="/admin" className="text-xs font-medium text-teal hover:underline">
-          ← Admin overview
-        </Link>
-        <p className="mt-3 efac-eyebrow text-orange">Admin</p>
-        <h1 className="mt-1 font-display text-3xl font-semibold text-navy">Reports</h1>
-        <p className="mt-1 text-sm text-ink/60">
-          Read-only analytics across courses and learners.
-        </p>
-      </div>
-
+    <ConsoleLayout title="Reports">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {/* Survey Analysis */}
         <Link
@@ -186,6 +175,6 @@ export default function AdminReports() {
           </p>
         </Link>
       </div>
-    </Layout>
+    </ConsoleLayout>
   )
 }

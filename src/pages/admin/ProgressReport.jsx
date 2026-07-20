@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { Download, ChevronUp, ChevronDown } from 'lucide-react'
-import Layout from '../../components/Layout'
+import ConsoleLayout from '../../components/ConsoleLayout'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 
@@ -367,22 +367,9 @@ export default function ProgressReport() {
   // ── render ────────────────────────────────────────────────────────────────
 
   return (
-    <Layout>
-      {/* Header */}
-      <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <Link to="/admin/reports" className="text-xs font-medium text-teal hover:underline">
-            ← Reports
-          </Link>
-          <p className="mt-3 efac-eyebrow text-orange">Learner tracking</p>
-          <h1 className="mt-1 font-display text-3xl font-semibold text-navy">
-            Progress Report
-          </h1>
-          <p className="mt-1 text-sm text-ink/60">
-            Per-learner progress, survey completion, and certificate status.
-          </p>
-        </div>
-        {learnerRows.length > 0 && (
+    <ConsoleLayout title="Progress Report">
+      {learnerRows.length > 0 && (
+        <div className="mb-6 flex justify-end">
           <button
             type="button"
             onClick={handleExport}
@@ -391,8 +378,8 @@ export default function ProgressReport() {
             <Download size={15} strokeWidth={2} aria-hidden="true" />
             Export CSV
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Course selector */}
       <div className="mb-8">
@@ -567,6 +554,6 @@ export default function ProgressReport() {
           )}
         </div>
       )}
-    </Layout>
+    </ConsoleLayout>
   )
 }

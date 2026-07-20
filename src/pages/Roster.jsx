@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import Layout from '../components/Layout'
+import ConsoleLayout from '../components/ConsoleLayout'
 import Avatar from '../components/Avatar'
 import { supabase } from '../lib/supabase'
 import { getFileUrl } from '../lib/files'
@@ -176,20 +176,21 @@ export default function Roster() {
 
   if (loading) {
     return (
-      <Layout>
-        <p className="text-ink/60">Loading roster…</p>
-      </Layout>
+      <ConsoleLayout title="Roster">
+        <div className="space-y-3">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="h-14 animate-pulse rounded-xl bg-ink/5" />
+          ))}
+        </div>
+      </ConsoleLayout>
     )
   }
 
   if (notFound) {
     return (
-      <Layout>
+      <ConsoleLayout title="Course not found">
         <div className="py-20 text-center">
-          <h1 className="font-display text-2xl font-semibold text-navy">
-            Course not found
-          </h1>
-          <p className="mt-2 text-ink/60">
+          <p className="text-ink/60">
             This course may have been removed or is unavailable.
           </p>
           <Link
@@ -199,29 +200,15 @@ export default function Roster() {
             Back to my courses
           </Link>
         </div>
-      </Layout>
+      </ConsoleLayout>
     )
   }
 
   return (
-    <Layout>
-      <div className="mb-2">
-        <Link
-          to="/instructor/courses"
-          className="text-sm font-medium text-teal hover:underline"
-        >
-          ← My courses
-        </Link>
-      </div>
-
-      <div className="mb-8">
-        <h1 className="font-display text-3xl font-semibold text-navy">
-          Roster
-        </h1>
-        <p className="mt-1 text-ink/60">
-          {courseTitle} · {totalLessons} lesson{totalLessons !== 1 ? 's' : ''}
-        </p>
-      </div>
+    <ConsoleLayout title={courseTitle || 'Roster'}>
+      <p className="mb-6 text-sm text-ink/60">
+        {courseTitle} · {totalLessons} lesson{totalLessons !== 1 ? 's' : ''}
+      </p>
 
       {roster.length === 0 ? (
         <div className="rounded-xl border border-ink/10 bg-white px-6 py-14 text-center">
@@ -257,7 +244,7 @@ export default function Roster() {
                 </p>
 
                 <div>
-                  <div className="h-1.5 overflow-hidden rounded-full bg-orange-light">
+                  <div className="h-1.5 overflow-hidden rounded-full bg-orange-tint">
                     <div
                       className="h-full rounded-full bg-orange transition-all duration-300"
                       style={{ width: `${learner.pct}%` }}
@@ -488,7 +475,7 @@ export default function Roster() {
           </div>
         </div>
       )}
-    </Layout>
+    </ConsoleLayout>
   )
 }
 

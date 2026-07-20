@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import Layout from '../components/Layout'
+import ConsoleLayout from '../components/ConsoleLayout'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -133,24 +133,23 @@ export default function GradingQueue() {
 
   if (loading) {
     return (
-      <Layout>
-        <p className="text-ink/60">Loading grading queue…</p>
-      </Layout>
+      <ConsoleLayout title="Grading Queue">
+        <div className="space-y-4">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="h-32 animate-pulse rounded-xl bg-ink/5" />
+          ))}
+        </div>
+      </ConsoleLayout>
     )
   }
 
   return (
-    <Layout>
-      <div className="mb-8">
-        <h1 className="font-display text-3xl font-semibold text-teal-dark">
-          Grading queue
-        </h1>
-        <p className="mt-1 text-ink/60">
-          {items.length === 0
-            ? 'All caught up — no ungraded responses.'
-            : `${items.length} response${items.length !== 1 ? 's' : ''} pending review`}
-        </p>
-      </div>
+    <ConsoleLayout title="Grading Queue">
+      <p className="mb-6 text-sm text-ink/60">
+        {items.length === 0
+          ? 'All caught up — no ungraded responses.'
+          : `${items.length} response${items.length !== 1 ? 's' : ''} pending review`}
+      </p>
 
       {loadError && (
         <p className="rounded-lg bg-clay/10 px-4 py-3 text-sm text-clay">
@@ -196,7 +195,7 @@ export default function GradingQueue() {
                     <p className="text-sm font-medium text-ink">
                       {q?.question_text}
                     </p>
-                    <span className="shrink-0 rounded-full bg-teal-light px-2.5 py-0.5 text-xs font-medium text-teal-dark">
+                    <span className="shrink-0 rounded-full bg-teal-tint px-2.5 py-0.5 text-xs font-medium text-teal">
                       {q?.points ?? 0} pt{(q?.points ?? 0) !== 1 ? 's' : ''}
                     </span>
                   </div>
@@ -252,6 +251,6 @@ export default function GradingQueue() {
           })}
         </div>
       )}
-    </Layout>
+    </ConsoleLayout>
   )
 }
