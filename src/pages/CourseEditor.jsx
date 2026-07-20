@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import Layout from '../components/Layout'
+import ConsoleLayout from '../components/ConsoleLayout'
 import Avatar from '../components/Avatar'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import { inputClass, btnClass, Field } from './Signup'
+import { Field } from './Signup'
 import { getFileUrl } from '../lib/files'
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -68,8 +68,8 @@ export default function CourseEditor() {
 
   // collaborator management (owner/admin only)
   const [courseInstructorId, setCourseInstructorId] = useState(null)
-  const [collaborators, setCollaborators] = useState([])     // { instructor_id, profiles: { full_name, avatar_url } }
-  const [allInstructors, setAllInstructors] = useState([])   // profiles with role='instructor'
+  const [collaborators, setCollaborators] = useState([])
+  const [allInstructors, setAllInstructors] = useState([])
   const [addCollabId, setAddCollabId] = useState('')
   const [collabSearch, setCollabSearch] = useState('')
   const [addingCollab, setAddingCollab] = useState(false)
@@ -141,7 +141,6 @@ export default function CourseEditor() {
           }),
       )
 
-      // Load collaborators and full instructor roster in parallel
       const [collabRes, instructorRes] = await Promise.all([
         supabase
           .from('course_instructors')
@@ -176,7 +175,6 @@ export default function CourseEditor() {
     setSaving(true)
 
     try {
-      // 1. Cover image upload
       let finalCoverUrl = coverUrl
       if (coverFile) {
         finalCoverUrl = await uploadFile('course-files', 'covers', coverFile)
@@ -184,7 +182,6 @@ export default function CourseEditor() {
         setCoverFile(null)
       }
 
-      // 2. Upsert course
       let courseId = isNew ? null : id
       if (courseId) {
         const { error: e } = await supabase
@@ -208,7 +205,6 @@ export default function CourseEditor() {
         courseId = data.id
       }
 
-      // 3. Delete removed items in FK-safe order: lessons → quizzes → modules
       if (deletedLessonIds.length) {
         const { error: e } = await supabase.from('lessons').delete().in('id', deletedLessonIds)
         if (e) throw e
@@ -222,12 +218,10 @@ export default function CourseEditor() {
         if (e) throw e
       }
 
-      // 4. Upsert modules, lessons, and quizzes in order
       for (let mi = 0; mi < modules.length; mi++) {
         const mod = modules[mi]
         let moduleId = mod.id
 
-        // Upload topic image if a new file was selected
         let finalImageUrl = mod.image_url || null
         if (mod._imageFile) {
           const ext = mod._imageFile.name.split('.').pop()
@@ -296,7 +290,6 @@ export default function CourseEditor() {
           }
         }
 
-        // Quiz for this module
         if (mod.quiz !== null) {
           const quizRow = {
             title: mod.quiz.title,
@@ -487,91 +480,102 @@ export default function CourseEditor() {
   // ── render ───────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <Layout>
-        <p className="text-ink/60">Loading…</p>
-      </Layout>
+      <ConsoleLayout title={isNew ? 'New Course' : 'Edit Course'}>
+        <div className="space-y-4">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="h-24 animate-pulse rounded-xl bg-ink/5" />
+          ))}
+        </div>
+      </ConsoleLayout>
     )
   }
 
   return (
-    <Layout>
-      {/* Header */}
-      <div className="mb-8 flex items-center justify-between">
-        <h1 className="font-display text-3xl font-semibold text-teal-dark">
-          {isNew ? 'New Course' : 'Edit Course'}
-        </h1>
-        <button onClick={handleSave} disabled={saving} className={`${btnClass} w-auto px-6`}>
-          {saving ? 'Saving…' : 'Save'}
-        </button>
+    <ConsoleLayout title={isNew ? 'New Course' : 'Edit Course'}>
+
+      {/* ── Top action bar ──────────────────────────────────────────────── */}
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        {error ? (
+          <p className="text-sm text-clay">{error}</p>
+        ) : (
+          <span />
+        )}
+        <div className="flex items-center gap-3">
+          <Link to="/instructor/courses" className="efac-btn-ghost">
+            Cancel
+          </Link>
+          <button onClick={handleSave} disabled={saving} className="efac-btn">
+            {saving ? 'Saving…' : isNew ? 'Create course' : 'Save changes'}
+          </button>
+        </div>
       </div>
 
-      {error && (
-        <p className="mb-6 rounded-lg bg-clay/10 px-4 py-3 text-sm text-clay">{error}</p>
-      )}
-
       {/* ── Course details ──────────────────────────────────────────────── */}
-      <section className="mb-8 space-y-5 rounded-xl border border-teal/10 bg-white p-6">
-        <h2 className="font-display text-xl font-semibold text-teal-dark">Course details</h2>
+      <section className="efac-card mb-6 overflow-hidden">
+        <div className="border-b border-ink/8 px-6 py-4">
+          <h2 className="font-display text-lg font-semibold text-navy">Course details</h2>
+        </div>
 
-        <Field label="Title" id="title">
-          <input
-            id="title"
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className={inputClass}
-          />
-        </Field>
-
-        <Field label="Description" id="description">
-          <textarea
-            id="description"
-            rows={4}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className={`${inputClass} resize-y`}
-          />
-        </Field>
-
-        <Field label="Cover image" id="cover">
-          {(coverPreview || coverUrl) && (
-            <img
-              src={coverPreview ?? coverUrl}
-              alt="Cover preview"
-              className="mb-2 h-32 w-full rounded-lg object-cover"
+        <div className="space-y-5 px-6 py-5">
+          <Field label="Title" id="title">
+            <input
+              id="title"
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="efac-input"
             />
-          )}
-          <input
-            id="cover"
-            type="file"
-            accept="image/*"
-            onChange={(e) => setCoverFile(e.target.files[0] ?? null)}
-            className="block text-sm text-ink/70 file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-teal-light file:px-3 file:py-1 file:text-sm file:font-medium file:text-teal-dark"
-          />
-        </Field>
+          </Field>
 
-        <label className="flex cursor-pointer items-center gap-3">
-          <input
-            type="checkbox"
-            checked={isPublished}
-            onChange={(e) => setIsPublished(e.target.checked)}
-            className="h-4 w-4 rounded border-teal/20 accent-teal"
-          />
-          <span className="text-sm font-medium text-ink/80">Published</span>
-        </label>
+          <Field label="Description" id="description">
+            <textarea
+              id="description"
+              rows={4}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="efac-input resize-y"
+            />
+          </Field>
+
+          <Field label="Cover image" id="cover">
+            {(coverPreview || coverUrl) && (
+              <img
+                src={coverPreview ?? coverUrl}
+                alt="Cover preview"
+                className="mb-2 h-32 w-full rounded-lg object-cover"
+              />
+            )}
+            <input
+              id="cover"
+              type="file"
+              accept="image/*"
+              onChange={(e) => setCoverFile(e.target.files[0] ?? null)}
+              className="block text-sm text-ink/70 file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-teal-tint file:px-3 file:py-1 file:text-sm file:font-medium file:text-teal"
+            />
+          </Field>
+
+          <label className="flex cursor-pointer items-center gap-3">
+            <input
+              type="checkbox"
+              checked={isPublished}
+              onChange={(e) => setIsPublished(e.target.checked)}
+              className="h-4 w-4 rounded border-ink/20 accent-teal"
+            />
+            <span className="text-sm font-medium text-ink">Published</span>
+          </label>
+        </div>
       </section>
 
       {/* ── Collaborators ───────────────────────────────── owner/admin only */}
       {canManageCollabs && (
-        <section className="mb-8 overflow-hidden rounded-xl border border-teal/10 bg-white">
-          <div className="border-b border-teal/10 px-6 py-4">
-            <h2 className="font-display text-xl font-semibold text-teal-dark">Collaborators</h2>
+        <section className="efac-card mb-6 overflow-hidden">
+          <div className="border-b border-ink/8 px-6 py-4">
+            <h2 className="font-display text-lg font-semibold text-navy">Collaborators</h2>
             <p className="mt-0.5 text-sm text-ink/50">
               Collaborators can edit course content. Only the course owner and admins see this panel.
             </p>
           </div>
 
-          {/* Current collaborators */}
           {collaborators.length === 0 ? (
             <p className="px-6 py-4 text-sm text-ink/40">No collaborators added yet.</p>
           ) : (
@@ -600,11 +604,8 @@ export default function CourseEditor() {
             </ul>
           )}
 
-          {/* Add collaborator */}
-          <div className="border-t border-teal/10 bg-sand/30 px-6 py-5">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-ink/40">
-              Add collaborator
-            </p>
+          <div className="border-t border-ink/8 bg-sand/30 px-6 py-5">
+            <p className="mb-3 efac-eyebrow text-ink/40">Add collaborator</p>
             {eligibleInstructors.length === 0 ? (
               <p className="text-sm text-ink/40">No other instructors available to add.</p>
             ) : (
@@ -614,13 +615,13 @@ export default function CourseEditor() {
                   placeholder="Filter by name…"
                   value={collabSearch}
                   onChange={(e) => { setCollabSearch(e.target.value); setAddCollabId('') }}
-                  className={inputClass}
+                  className="efac-input"
                 />
                 <div className="flex items-center gap-3">
                   <select
                     value={addCollabId}
                     onChange={(e) => setAddCollabId(e.target.value)}
-                    className={`${inputClass} flex-1`}
+                    className="efac-input flex-1"
                   >
                     <option value="">Select an instructor…</option>
                     {filteredInstructors.map((p) => (
@@ -633,7 +634,7 @@ export default function CourseEditor() {
                     type="button"
                     onClick={handleAddCollab}
                     disabled={!addCollabId || addingCollab}
-                    className={`${btnClass} w-auto shrink-0 px-4 py-2 disabled:opacity-60`}
+                    className="efac-btn shrink-0 disabled:opacity-60"
                   >
                     {addingCollab ? 'Adding…' : 'Add'}
                   </button>
@@ -647,45 +648,50 @@ export default function CourseEditor() {
         </section>
       )}
 
-      {/* ── Modules ─────────────────────────────────────────────────────── */}
+      {/* ── Topics (modules) ────────────────────────────────────────────── */}
       <section>
-        <h2 className="mb-4 font-display text-xl font-semibold text-teal-dark">Modules</h2>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="font-display text-lg font-semibold text-navy">Topics</h2>
+          <span className="text-sm text-ink/40">
+            {modules.length} topic{modules.length !== 1 ? 's' : ''}
+          </span>
+        </div>
 
         <div className="space-y-4">
           {modules.map((mod, mi) => (
             <div
               key={mod._key}
-              className="overflow-hidden rounded-xl border border-teal/10 bg-white"
+              className="overflow-hidden rounded-xl border border-ink/10 bg-white"
             >
-              {/* module header row */}
-              <div className="flex items-center gap-2 border-b border-teal/10 px-4 py-3">
-                <span className="shrink-0 text-xs font-medium text-ink/40">
-                  Module {mi + 1}
+              {/* topic header row */}
+              <div className="flex items-center gap-2 border-b border-ink/8 bg-sand/30 px-4 py-3">
+                <span className="shrink-0 rounded-full bg-navy/8 px-2 py-0.5 text-[11px] font-semibold text-navy/60">
+                  {mi + 1}
                 </span>
                 <input
                   type="text"
-                  placeholder="Module title"
+                  placeholder="Topic title"
                   value={mod.title}
                   onChange={(e) => updateModuleTitle(mod._key, e.target.value)}
-                  className="flex-1 rounded-md border border-teal/20 bg-white px-3 py-1.5 text-sm text-ink outline-none focus:border-teal focus:ring-2 focus:ring-teal/20"
+                  className="flex-1 rounded-lg border border-ink/15 bg-white px-3 py-1.5 text-sm text-ink outline-none focus:border-teal focus:ring-2 focus:ring-teal/20"
                 />
-                <div className="flex shrink-0 items-center gap-1">
+                <div className="flex shrink-0 items-center gap-0.5">
                   <IconBtn
-                    label="Move module up"
+                    label="Move topic up"
                     onClick={() => moveModule(mod._key, -1)}
                     disabled={mi === 0}
                   >
                     ↑
                   </IconBtn>
                   <IconBtn
-                    label="Move module down"
+                    label="Move topic down"
                     onClick={() => moveModule(mod._key, 1)}
                     disabled={mi === modules.length - 1}
                   >
                     ↓
                   </IconBtn>
                   <IconBtn
-                    label="Delete module"
+                    label="Delete topic"
                     onClick={() => deleteModule(mod._key)}
                     danger
                   >
@@ -694,65 +700,86 @@ export default function CourseEditor() {
                 </div>
               </div>
 
-              {/* outcome + reflective question */}
-              <div className="space-y-4 border-b border-teal/10 bg-sand/30 px-5 py-4">
-                <Field label="Learning outcome" id={`out-${mod._key}`}>
+              {/* outcome + reflective question + topic image */}
+              <div className="grid gap-4 border-b border-ink/8 bg-paper px-5 py-5 sm:grid-cols-2">
+                <div>
+                  <label
+                    htmlFor={`out-${mod._key}`}
+                    className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-ink/40"
+                  >
+                    Learning outcome
+                  </label>
                   <textarea
                     id={`out-${mod._key}`}
-                    rows={2}
+                    rows={3}
                     value={mod.outcome}
                     onChange={(e) => updateModuleField(mod._key, 'outcome', e.target.value)}
-                    placeholder="What learners will be able to do after this module…"
-                    className={`${inputClass} resize-y`}
+                    placeholder="What learners will be able to do after this topic…"
+                    className="efac-input resize-y"
                   />
-                </Field>
-                <Field label="Reflective question" id={`rq-${mod._key}`}>
+                </div>
+                <div>
+                  <label
+                    htmlFor={`rq-${mod._key}`}
+                    className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-ink/40"
+                  >
+                    Reflective question
+                  </label>
                   <textarea
                     id={`rq-${mod._key}`}
-                    rows={2}
+                    rows={3}
                     value={mod.reflective_question}
                     onChange={(e) =>
                       updateModuleField(mod._key, 'reflective_question', e.target.value)
                     }
                     placeholder="A question for learners to consider before starting…"
-                    className={`${inputClass} resize-y`}
+                    className="efac-input resize-y"
                   />
-                </Field>
-                <ModuleImageField
-                  imageUrl={mod.image_url}
-                  imageFile={mod._imageFile}
-                  onFileChange={(f) => updateModuleField(mod._key, '_imageFile', f)}
-                />
+                </div>
+                <div className="sm:col-span-2">
+                  <ModuleImageField
+                    imageUrl={mod.image_url}
+                    imageFile={mod._imageFile}
+                    onFileChange={(f) => updateModuleField(mod._key, '_imageFile', f)}
+                  />
+                </div>
               </div>
 
               {/* materials & recordings manager */}
               {mod.id ? (
                 <ResourceManager moduleId={mod.id} />
               ) : (
-                <p className="border-b border-teal/10 px-5 py-3 text-xs text-ink/40">
+                <p className="border-b border-ink/8 px-5 py-3 text-xs text-ink/40">
                   Save the course to manage materials and recordings.
                 </p>
               )}
 
               {/* lessons list */}
-              <ul className="divide-y divide-teal/10">
+              <ul className="divide-y divide-ink/8">
                 {mod.lessons.map((lesson, li) => (
                   <li key={lesson._key}>
                     {/* lesson header row */}
                     <div
-                      className="flex cursor-pointer items-center gap-2 px-4 py-3 transition-colors hover:bg-sand"
+                      className="flex cursor-pointer items-center gap-2 px-4 py-3 transition-colors hover:bg-sand/40"
                       onClick={() =>
                         setOpenKey((k) => (k === lesson._key ? null : lesson._key))
                       }
                     >
-                      <span className="shrink-0 text-xs text-ink/40">Lesson {li + 1}</span>
+                      <span className="shrink-0 text-xs font-medium text-ink/35">
+                        Lesson {li + 1}
+                      </span>
                       <span className="flex-1 truncate text-sm font-medium text-ink">
                         {lesson.title || (
                           <span className="italic text-ink/30">Untitled lesson</span>
                         )}
                       </span>
+                      {lesson.required_action !== 'none' && (
+                        <span className="shrink-0 rounded-full bg-orange-tint px-2 py-0.5 text-[10px] font-semibold text-orange">
+                          {lesson.required_action === 'link' ? 'Link' : lesson.required_action === 'file' ? 'File' : 'Response'}
+                        </span>
+                      )}
                       <div
-                        className="flex shrink-0 items-center gap-1"
+                        className="flex shrink-0 items-center gap-0.5"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <IconBtn
@@ -791,112 +818,108 @@ export default function CourseEditor() {
 
                     {/* lesson fields */}
                     {openKey === lesson._key && (
-                      <div className="space-y-4 border-t border-teal/10 bg-sand px-5 py-5">
-                        <Field label="Title" id={`lt-${lesson._key}`}>
-                          <input
-                            id={`lt-${lesson._key}`}
-                            type="text"
-                            value={lesson.title}
-                            onChange={(e) =>
-                              updateLesson(mod._key, lesson._key, { title: e.target.value })
-                            }
-                            className={inputClass}
-                          />
-                        </Field>
-
-                        <Field label="Content" id={`lc-${lesson._key}`}>
-                          <textarea
-                            id={`lc-${lesson._key}`}
-                            rows={5}
-                            value={lesson.content}
-                            onChange={(e) =>
-                              updateLesson(mod._key, lesson._key, {
-                                content: e.target.value,
-                              })
-                            }
-                            className={`${inputClass} resize-y`}
-                          />
-                        </Field>
-
-                        <Field label="Video URL" id={`lv-${lesson._key}`}>
-                          <input
-                            id={`lv-${lesson._key}`}
-                            type="url"
-                            placeholder="https://…"
-                            value={lesson.video_url}
-                            onChange={(e) =>
-                              updateLesson(mod._key, lesson._key, {
-                                video_url: e.target.value,
-                              })
-                            }
-                            className={inputClass}
-                          />
-                        </Field>
-
-                        <Field label="Required action" id={`lra-${lesson._key}`}>
-                          <select
-                            id={`lra-${lesson._key}`}
-                            value={lesson.required_action}
-                            onChange={(e) =>
-                              updateLesson(mod._key, lesson._key, {
-                                required_action: e.target.value,
-                                action_prompt: '',
-                              })
-                            }
-                            className={inputClass}
-                          >
-                            <option value="none">None — learners mark done freely</option>
-                            <option value="link">Link — learners must submit a URL</option>
-                            <option value="file">File — learners must upload a file</option>
-                            <option value="text">Written response — learners type a response</option>
-                          </select>
-                        </Field>
-
-                        {lesson.required_action !== 'none' && (
-                          <Field label="Action prompt" id={`lap-${lesson._key}`}>
+                      <div className="border-t border-ink/8 bg-paper px-5 py-5">
+                        <div className="space-y-4">
+                          <Field label="Title" id={`lt-${lesson._key}`}>
                             <input
-                              id={`lap-${lesson._key}`}
+                              id={`lt-${lesson._key}`}
                               type="text"
-                              placeholder={
-                                lesson.required_action === 'link'
-                                  ? 'e.g. Share a link to your completed project…'
-                                  : lesson.required_action === 'text'
-                                  ? 'e.g. Describe the key insight you took from this lesson…'
-                                  : 'e.g. Upload a photo of your finished work…'
-                              }
-                              value={lesson.action_prompt}
+                              value={lesson.title}
                               onChange={(e) =>
-                                updateLesson(mod._key, lesson._key, {
-                                  action_prompt: e.target.value,
-                                })
+                                updateLesson(mod._key, lesson._key, { title: e.target.value })
                               }
-                              className={inputClass}
+                              className="efac-input"
                             />
                           </Field>
-                        )}
 
-                        <Field label="Attachment" id={`la-${lesson._key}`}>
-                          {lesson.attachment_url && !lesson._attachmentFile && (
-                            <a
-                              href={lesson.attachment_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="mb-1 block truncate text-xs text-teal hover:underline"
+                          <Field label="Content" id={`lc-${lesson._key}`}>
+                            <textarea
+                              id={`lc-${lesson._key}`}
+                              rows={5}
+                              value={lesson.content}
+                              onChange={(e) =>
+                                updateLesson(mod._key, lesson._key, { content: e.target.value })
+                              }
+                              className="efac-input resize-y"
+                            />
+                          </Field>
+
+                          <Field label="Video URL" id={`lv-${lesson._key}`}>
+                            <input
+                              id={`lv-${lesson._key}`}
+                              type="url"
+                              placeholder="https://…"
+                              value={lesson.video_url}
+                              onChange={(e) =>
+                                updateLesson(mod._key, lesson._key, { video_url: e.target.value })
+                              }
+                              className="efac-input"
+                            />
+                          </Field>
+
+                          <Field label="Required action" id={`lra-${lesson._key}`}>
+                            <select
+                              id={`lra-${lesson._key}`}
+                              value={lesson.required_action}
+                              onChange={(e) =>
+                                updateLesson(mod._key, lesson._key, {
+                                  required_action: e.target.value,
+                                  action_prompt: '',
+                                })
+                              }
+                              className="efac-input"
                             >
-                              Current attachment
-                            </a>
+                              <option value="none">None — learners mark done freely</option>
+                              <option value="link">Link — learners must submit a URL</option>
+                              <option value="file">File — learners must upload a file</option>
+                              <option value="text">Written response — learners type a response</option>
+                            </select>
+                          </Field>
+
+                          {lesson.required_action !== 'none' && (
+                            <Field label="Action prompt" id={`lap-${lesson._key}`}>
+                              <input
+                                id={`lap-${lesson._key}`}
+                                type="text"
+                                placeholder={
+                                  lesson.required_action === 'link'
+                                    ? 'e.g. Share a link to your completed project…'
+                                    : lesson.required_action === 'text'
+                                    ? 'e.g. Describe the key insight you took from this lesson…'
+                                    : 'e.g. Upload a photo of your finished work…'
+                                }
+                                value={lesson.action_prompt}
+                                onChange={(e) =>
+                                  updateLesson(mod._key, lesson._key, { action_prompt: e.target.value })
+                                }
+                                className="efac-input"
+                              />
+                            </Field>
                           )}
-                          <input
-                            id={`la-${lesson._key}`}
-                            type="file"
-                            onChange={(e) =>
-                              updateLesson(mod._key, lesson._key, {
-                                _attachmentFile: e.target.files[0] ?? null,
-                              })
-                            }
-                            className="block text-sm text-ink/70 file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-teal-light file:px-3 file:py-1 file:text-sm file:font-medium file:text-teal-dark"
-                          />
-                        </Field>
+
+                          <Field label="Attachment" id={`la-${lesson._key}`}>
+                            {lesson.attachment_url && !lesson._attachmentFile && (
+                              <a
+                                href={lesson.attachment_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="mb-1 block truncate text-xs text-teal hover:underline"
+                              >
+                                Current attachment
+                              </a>
+                            )}
+                            <input
+                              id={`la-${lesson._key}`}
+                              type="file"
+                              onChange={(e) =>
+                                updateLesson(mod._key, lesson._key, {
+                                  _attachmentFile: e.target.files[0] ?? null,
+                                })
+                              }
+                              className="block text-sm text-ink/70 file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-teal-tint file:px-3 file:py-1 file:text-sm file:font-medium file:text-teal"
+                            />
+                          </Field>
+                        </div>
                       </div>
                     )}
                   </li>
@@ -904,7 +927,7 @@ export default function CourseEditor() {
               </ul>
 
               {/* add lesson */}
-              <div className="border-b border-teal/10 px-4 py-3">
+              <div className="border-b border-ink/8 px-4 py-3">
                 <button
                   type="button"
                   onClick={() => addLesson(mod._key)}
@@ -920,17 +943,15 @@ export default function CourseEditor() {
                   <button
                     type="button"
                     onClick={() => addQuiz(mod._key)}
-                    className="text-sm font-medium text-teal/70 hover:text-teal hover:underline"
+                    className="text-sm font-medium text-ink/40 hover:text-teal hover:underline"
                   >
                     + Add quiz
                   </button>
                 </div>
               ) : (
-                <div className="space-y-4 bg-sand/60 px-5 py-4">
+                <div className="space-y-4 border-t border-ink/8 bg-navy/[0.02] px-5 py-4">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold uppercase tracking-wide text-ink/40">
-                      Quiz
-                    </span>
+                    <p className="efac-eyebrow text-ink/40">Quiz</p>
                     <div className="flex items-center gap-4">
                       {mod.quiz.id && (
                         <Link
@@ -956,7 +977,7 @@ export default function CourseEditor() {
                       type="text"
                       value={mod.quiz.title}
                       onChange={(e) => updateQuiz(mod._key, { title: e.target.value })}
-                      className={inputClass}
+                      className="efac-input"
                     />
                   </Field>
 
@@ -971,7 +992,7 @@ export default function CourseEditor() {
                         onChange={(e) =>
                           updateQuiz(mod._key, { passing_score: Number(e.target.value) })
                         }
-                        className={inputClass}
+                        className="efac-input"
                       />
                     </Field>
                     <Field label="Max attempts" id={`qa-${mod._key}`}>
@@ -983,7 +1004,7 @@ export default function CourseEditor() {
                         onChange={(e) =>
                           updateQuiz(mod._key, { max_attempts: Number(e.target.value) })
                         }
-                        className={inputClass}
+                        className="efac-input"
                       />
                     </Field>
                   </div>
@@ -1002,20 +1023,23 @@ export default function CourseEditor() {
         <button
           type="button"
           onClick={addModule}
-          className="mt-4 w-full rounded-xl border-2 border-dashed border-teal/20 py-3 text-sm font-medium text-teal/60 transition-colors hover:border-teal hover:text-teal"
+          className="mt-4 w-full rounded-xl border-2 border-dashed border-ink/15 py-3.5 text-sm font-medium text-ink/40 transition-colors hover:border-teal/40 hover:text-teal"
         >
-          + Add module
+          + Add topic
         </button>
       </section>
 
       {/* Bottom save */}
-      <div className="mt-10 flex items-center justify-end gap-4">
+      <div className="mt-10 flex items-center justify-end gap-3">
         {error && <p className="text-sm text-clay">{error}</p>}
-        <button onClick={handleSave} disabled={saving} className={`${btnClass} w-auto px-6`}>
-          {saving ? 'Saving…' : 'Save course'}
+        <Link to="/instructor/courses" className="efac-btn-ghost">
+          Cancel
+        </Link>
+        <button onClick={handleSave} disabled={saving} className="efac-btn">
+          {saving ? 'Saving…' : isNew ? 'Create course' : 'Save changes'}
         </button>
       </div>
-    </Layout>
+    </ConsoleLayout>
   )
 }
 
@@ -1033,7 +1057,6 @@ const KIND_LABELS = {
 function ResourceManager({ moduleId }) {
   const [resources, setResources] = useState(null)
   const [form, setForm] = useState({ kind: 'pdf', title: '', url: '', body: '' })
-  // 'url' = paste a link; 'file' = upload to storage (ignored when kind='note')
   const [mode, setMode] = useState('url')
   const [fileObj, setFileObj] = useState(null)
   const [adding, setAdding] = useState(false)
@@ -1067,7 +1090,7 @@ function ResourceManager({ moduleId }) {
     setAddError('')
 
     if (isNote) {
-      // notes: no url/file required — body and/or title is enough
+      // notes: no url/file required
     } else if (mode === 'url' && !form.url.trim()) {
       setAddError('URL is required.')
       return
@@ -1124,24 +1147,22 @@ function ResourceManager({ moduleId }) {
 
   if (resources === null) {
     return (
-      <p className="border-b border-teal/10 px-5 py-3 text-xs text-ink/40">
+      <p className="border-b border-ink/8 px-5 py-3 text-xs text-ink/40">
         Loading resources…
       </p>
     )
   }
 
   return (
-    <div className="space-y-4 border-b border-teal/10 px-5 py-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-ink/40">
-        Materials &amp; recordings
-      </p>
+    <div className="border-b border-ink/8 px-5 py-4">
+      <p className="mb-3 efac-eyebrow text-ink/40">Materials &amp; recordings</p>
 
       {/* Existing resources */}
       {resources.length > 0 && (
-        <ul className="divide-y divide-teal/10 rounded-lg border border-teal/10">
+        <ul className="mb-4 divide-y divide-ink/5 overflow-hidden rounded-lg border border-ink/10">
           {resources.map((r) => (
-            <li key={r.id} className="flex items-center gap-3 px-3 py-2">
-              <span className="shrink-0 rounded bg-teal-light px-1.5 py-0.5 text-xs font-medium text-teal-dark">
+            <li key={r.id} className="flex items-center gap-3 px-3 py-2.5">
+              <span className="shrink-0 rounded-full bg-teal-tint px-2 py-0.5 text-[10px] font-semibold text-teal">
                 {KIND_LABELS[r.kind] ?? r.kind}
               </span>
               {r.kind === 'note' ? (
@@ -1172,12 +1193,11 @@ function ResourceManager({ moduleId }) {
 
       {/* Add-resource form */}
       <div className="space-y-2">
-        {/* Kind + title */}
         <div className="flex gap-2">
           <select
             value={form.kind}
             onChange={(e) => handleKindChange(e.target.value)}
-            className={`${inputClass} w-40 shrink-0`}
+            className="efac-input w-36 shrink-0"
           >
             <option value="note">Note</option>
             <option value="pdf">PDF</option>
@@ -1190,24 +1210,22 @@ function ResourceManager({ moduleId }) {
             type="text"
             value={form.title}
             onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
-            placeholder={isNote ? 'Title (optional)' : 'Title (optional)'}
-            className={inputClass}
+            placeholder="Title (optional)"
+            className="efac-input"
           />
         </div>
 
         {isNote ? (
-          /* Note body textarea */
           <textarea
             rows={4}
             value={form.body}
             onChange={(e) => setForm((p) => ({ ...p, body: e.target.value }))}
             placeholder="Write your note here…"
-            className={`${inputClass} resize-y`}
+            className="efac-input resize-y"
           />
         ) : (
           <>
-            {/* URL / Upload toggle */}
-            <div className="flex w-fit overflow-hidden rounded-md border border-teal/20 text-xs font-medium">
+            <div className="flex w-fit overflow-hidden rounded-lg border border-ink/15 text-xs font-medium">
               <button
                 type="button"
                 onClick={() => switchMode('url')}
@@ -1222,7 +1240,7 @@ function ResourceManager({ moduleId }) {
               <button
                 type="button"
                 onClick={() => switchMode('file')}
-                className={`border-l border-teal/20 px-3 py-1.5 transition-colors ${
+                className={`border-l border-ink/15 px-3 py-1.5 transition-colors ${
                   mode === 'file'
                     ? 'bg-teal text-white'
                     : 'bg-white text-ink/60 hover:bg-sand hover:text-ink'
@@ -1232,33 +1250,31 @@ function ResourceManager({ moduleId }) {
               </button>
             </div>
 
-            {/* URL input or file picker */}
             {mode === 'url' ? (
               <input
                 type="url"
                 value={form.url}
                 onChange={(e) => setForm((p) => ({ ...p, url: e.target.value }))}
                 placeholder="https://…"
-                className={inputClass}
+                className="efac-input"
               />
             ) : (
               <input
                 type="file"
                 accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,image/*"
                 onChange={(e) => setFileObj(e.target.files?.[0] ?? null)}
-                className="block text-sm text-ink/70 file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-teal-light file:px-3 file:py-1 file:text-sm file:font-medium file:text-teal-dark"
+                className="block text-sm text-ink/70 file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-teal-tint file:px-3 file:py-1 file:text-sm file:font-medium file:text-teal"
               />
             )}
           </>
         )}
 
-        {/* Add button on its own line, full-width-ish to match pattern */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 pt-1">
           <button
             type="button"
             onClick={handleAdd}
             disabled={adding}
-            className={`${btnClass} w-auto px-4`}
+            className="efac-btn-sm disabled:opacity-60"
           >
             {adding ? (mode === 'file' && !isNote ? 'Uploading…' : 'Adding…') : 'Add'}
           </button>
@@ -1290,7 +1306,10 @@ function ModuleImageField({ imageUrl, imageFile, onFileChange }) {
   const displayUrl = localPreview || resolvedUrl
 
   return (
-    <Field label="Topic image" id="topic-img">
+    <div>
+      <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-ink/40">
+        Topic image
+      </label>
       {displayUrl && (
         <img
           src={displayUrl}
@@ -1305,9 +1324,9 @@ function ModuleImageField({ imageUrl, imageFile, onFileChange }) {
           const f = e.target.files?.[0]
           if (f) onFileChange(f)
         }}
-        className="block text-sm text-ink/70 file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-teal-light file:px-3 file:py-1 file:text-sm file:font-medium file:text-teal-dark"
+        className="block text-sm text-ink/70 file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-teal-tint file:px-3 file:py-1 file:text-sm file:font-medium file:text-teal"
       />
-    </Field>
+    </div>
   )
 }
 
@@ -1323,7 +1342,7 @@ function IconBtn({ label, onClick, disabled, danger, children }) {
       className={`grid h-7 w-7 place-items-center rounded text-sm transition-colors disabled:opacity-30 ${
         danger
           ? 'text-clay hover:bg-clay/10'
-          : 'text-ink/50 hover:bg-teal-light hover:text-teal'
+          : 'text-ink/40 hover:bg-teal-tint hover:text-teal'
       }`}
     >
       {children}
